@@ -13,6 +13,7 @@ import {
 const MAP_WIDTH = 1100;
 const MAP_HEIGHT = 950;
 const REFRESH_MS = 30_000;
+const TRAIN_BATCH_SIZE = 12;
 
 const RAIL_LINES = [
   [[43.36, -8.4], [42.88, -8.54], [42.34, -7.86], [41.5, -5.7], [41.65, -4.73], [40.42, -3.7]],
@@ -129,6 +130,10 @@ function App() {
   const [communityFilter, setCommunityFilter] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(TRAIN_BATCH_SIZE);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const trainListRef = useRef(null);
+  const loadMoreRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +177,36 @@ function App() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    setVisibleLimit(TRAIN_BATCH_SIZE);
+  }, [search, serviceFilter, communityFilter]);
+
+  useEffect(() => {
+    setIsInfoOpen(Boolean(selectedId));
+  }, [selectedId]);
+
+  useEffect(() => {
+    const rootNode = trainListRef.current;
+    const sentinel = loadMoreRef.current;
+    if (!rootNode || !sentinel) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleLimit((current) => Math.min(current + TRAIN_BATCH_SIZE, visibleTrains.length));
+        }
+      },
+      {
+        root: rootNode,
+        rootMargin: "200px 0px",
+        threshold: 0.1
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleTrains.length]);
+
   const services = [...new Set(trains.map(serviceName))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
   const communities = [...new Set(trains.flatMap(getCommunities))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
   const normalizedSearch = search.trim().toLocaleLowerCase("es");
@@ -182,6 +217,7 @@ function App() {
       && (!serviceFilter || serviceName(train) === serviceFilter)
       && (!communityFilter || getCommunities(train).includes(communityFilter));
   }).sort((a, b) => (b.delayMinutes ?? -Infinity) - (a.delayMinutes ?? -Infinity));
+  const renderedTrains = visibleTrains.slice(0, visibleLimit);
   const mapTrains = trains.filter((train) => typeof train.latitude === "number" && typeof train.longitude === "number");
 
   const delayedTrains = trains.filter((train) => typeof train.delayMinutes === "number" && train.delayMinutes > 0);
@@ -191,6 +227,11 @@ function App() {
 
   function focusTrain(train) {
     setSelectedId(trainId(train));
+  }
+
+  function closeTrainInfo() {
+    setSelectedId(null);
+    setIsInfoOpen(false);
   }
 
   function exportCsv() {
@@ -286,9 +327,9 @@ function App() {
               <span><i className="legend-dot major-delay" /> +15 min</span>
             </div>
             <div className="map-counter"><MapPin size={14} /> {mapTrains.length} trenes en mapa</div>
-            {selectedTrain && (
+            {selectedTrain && isInfoOpen && (
               <section className="selected-train" aria-label="Detalle del tren seleccionado">
-                <button className="close-selected" type="button" onClick={() => setSelectedId(null)} aria-label="Cerrar detalle"><X size={15} /></button>
+                <button className="close-selected" type="button" onClick={closeTrainInfo} aria-label="Cerrar detalle"><X size={15} /></button>
                 <span className="eyebrow">{serviceName(selectedTrain)}</span>
                 <strong>{selectedTrain.trainCode || "Tren"}</strong>
                 <span>{selectedTrain.originName || "Origen"} → {selectedTrain.destinationName || "Destino"}</span>
@@ -315,21 +356,21 @@ function App() {
           </div>
 
           <div className="filter-stack">
-            <label className="search-box"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar tren, ciudad…" aria-label="Buscar tren o ciudad" /></label>
+            <label className="search-box"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar tren, ciudad…" aria-label="Buscar tren, ciudad" /></label>
             <div className="select-row">
-              <label><span>Servicio</span><select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="">Todos</option>{services.map((service) => <option key={service}>{service}</option>)}</select></label>
-              <label><span>Comunidad</span><select value={communityFilter} onChange={(event) => setCommunityFilter(event.target.value)}><option value="">Todas</option>{communities.map((community) => <option key={community}>{community}</option>)}</select></label>
+              <label><span>Servicio</span><select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="">Todos</option>{services.map((service) => <option key={service} value={service}>{service}</option>)}</select></label>
+              <label><span>Comunidad</span><select value={communityFilter} onChange={(event) => setCommunityFilter(event.target.value)}><option value="">Todas</option>{communities.map((community) => <option key={community} value={community}>{community}</option>)}</select></label>
             </div>
           </div>
 
           <div className="list-toolbar"><h3>Circulaciones</h3><span>{visibleTrains.length}</span></div>
-          <div className="train-list" aria-live="polite">
+          <div className="train-list" ref={trainListRef} aria-live="polite">
             {connection === "loading" && <div className="empty-state">Conectando con las fuentes ferroviarias…</div>}
             {connection === "offline" && <div className="empty-state error-state"><AlertTriangle size={17} /><span>{error || "No se pudo cargar la circulación."}</span></div>}
             {connection !== "loading" && connection !== "offline" && visibleTrains.length === 0 && <div className="empty-state">No hay trenes que coincidan con los filtros.</div>}
-            {visibleTrains.map((train) => (
+            {renderedTrains.map((train) => (
               <button type="button" className={`train-row${trainId(train) === selectedId ? " train-row-active" : ""}`} key={trainId(train)} onClick={() => focusTrain(train)}>
-                <div className="train-row-top"><div><strong>{serviceName(train)}</strong><span>{train.trainCode || "Sin número"}</span></div><b className="delay-badge" style={{ color: delayColor(train.delayMinutes), borderColor: `${delayColor(train.delayMinutes)}55` }}>{delayLabel(train.delayMinutes)}</b></div>
+                <div className="train-row-top"><div><strong>{serviceName(train)}</strong><span>{train.trainCode || "Sin número"}</span></div><b className="delay-badge" style={{ color: delayColor(train.delayMinutes), borderColor: delayColor(train.delayMinutes), background: `${delayColor(train.delayMinutes)}22` }}>{delayLabel(train.delayMinutes)}</b></div>
                 <div className="train-route">{train.originName || "Origen sin dato"}<span>→</span>{train.destinationName || "Destino sin dato"}</div>
                 <div className="train-status">
                   <span><small>Parada / ubicación</small><b>{train.currentStationName || train.nextStationName || train.currentLocation || "Ubicación no disponible"}</b></span>
@@ -339,6 +380,11 @@ function App() {
                 <div className="arrival-pair"><span><small>Programada</small><b>{formatTime(scheduledArrival(train))}</b></span><span><small>Estimada</small><b>{formatTime(estimatedArrival(train))}</b></span></div>
               </button>
             ))}
+            {visibleTrains.length > renderedTrains.length && (
+              <button ref={loadMoreRef} type="button" className="load-more" onClick={() => setVisibleLimit((current) => Math.min(current + TRAIN_BATCH_SIZE, visibleTrains.length))}>
+                Cargar más trenes
+              </button>
+            )}
           </div>
 
           <div className="panel-footer">
