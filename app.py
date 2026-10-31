@@ -4,6 +4,7 @@ import math
 import logging
 import threading
 import unicodedata
+from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from time import time
@@ -12,9 +13,10 @@ from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, send_from_directory
 
 app = Flask(__name__)
+FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8080"))
@@ -642,7 +644,14 @@ def estimate_speed(train):
 
 @app.route("/")
 def index():
+    if (FRONTEND_DIST / "index.html").is_file():
+        return send_from_directory(FRONTEND_DIST, "index.html")
     return render_template("index.html")
+
+
+@app.route("/assets/<path:filename>")
+def frontend_asset(filename):
+    return send_from_directory(FRONTEND_DIST / "assets", filename)
 
 
 @app.route("/api/trains")

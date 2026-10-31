@@ -65,6 +65,7 @@ header{
 .map-route{fill:none;stroke:#6c9292;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.7;vector-effect:non-scaling-stroke}
 .map-city{fill:#8de0bd;stroke:#0a1421;stroke-width:1.5;vector-effect:non-scaling-stroke}
 .map-city-label{fill:#c1d2d7;font-size:13px;font-weight:650;paint-order:stroke;stroke:#0a1421;stroke-width:3px;stroke-linejoin:round}
+.map-inset-label{fill:#8fa3bd;font-size:12px;font-weight:700}
 .train-marker{cursor:pointer;outline:none}
 .train-marker .marker-halo{opacity:.2}
 .train-marker .marker-dot{stroke:#edf4ff;stroke-width:2.5;vector-effect:non-scaling-stroke}
@@ -318,7 +319,7 @@ select option{background:#101a2b;color:var(--text)}
     </div>
 
     <p class="source-note">
-      Datos de Radar de Trenes y feeds GTFS-RT de Renfe. La ubicación y los horarios dependen de la disponibilidad de cada fuente. Las comunidades se estiman a partir de las estaciones cuando no vienen informadas.
+      Datos de Radar de Trenes y feeds GTFS-RT de Renfe. Cartografía Natural Earth (dominio público); red ferroviaria esquemática. La ubicación y los horarios dependen de la disponibilidad de cada fuente.
     </p>
   </aside>
 </div>
@@ -345,14 +346,7 @@ function svgElement(tag, attributes, parent) {
   return element;
 }
 function projectPoint(latitude, longitude) {
-  return {x:(longitude + 10) * 78, y:(44.5 - latitude) * 100};
-}
-function drawShape(points, className, parent) {
-  const path = points.map(([latitude, longitude], index) => {
-    const point = projectPoint(latitude, longitude);
-    return `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`;
-  }).join("") + "Z";
-  svgElement("path", {d:path,class:className}, parent);
+  return {x:(longitude + 11) * 68, y:(45.5 - latitude) * 88};
 }
 function drawRoute(points) {
   const path = points.map(([latitude, longitude], index) => {
@@ -361,24 +355,22 @@ function drawRoute(points) {
   }).join("");
   svgElement("path", {d:path,class:"map-route"}, routeLayer);
 }
-
-drawShape([[45,-1],[44.3,-1.7],[43.7,-1.4],[43.5,-.4],[43.6,.7],[43.4,1.8],[43.2,3.2],[43.3,5],[46,5],[46,-1]],"map-land neighbor",baseLayer);
-drawShape([[41.9,-8.2],[41.8,-6.8],[41.2,-6.9],[40.8,-6.9],[39.5,-7],[38,-7],[37,-7.4],[36.95,-8.9],[37.9,-9.5],[40.8,-9.5]],"map-land neighbor",baseLayer);
-drawShape([
-  [43.79,-7.0],[43.55,-6.7],[43.42,-5.8],[43.38,-4.5],[43.28,-3.2],
-  [43.38,-2.3],[43.35,-1.8],[43.05,-1.25],[42.75,-1.55],[42.72,-0.6],
-  [42.65,0.5],[42.55,1.4],[42.45,2.3],[42.35,3.15],[41.95,3.2],
-  [41.35,2.25],[40.75,0.75],[40.55,0.25],[39.9,-0.05],[39.45,-0.3],
-  [38.7,-0.1],[38.0,-0.7],[37.25,-1.75],[36.75,-2.35],[36.15,-5.35],
-  [36.0,-6.25],[36.45,-6.4],[36.8,-6.25],[37.15,-7.0],[37.2,-7.45],
-  [37.6,-7.4],[38.0,-7.0],[39.0,-7.0],[40.0,-6.85],[41.0,-6.2],
-  [41.9,-6.55],[42.25,-7.0],[42.7,-7.0],[43.2,-7.0]
-],"map-land",baseLayer);
-drawShape([[39.9,3.0],[39.7,4.35],[39.0,4.25],[38.65,3.0],[39.0,2.35],[39.65,2.35]],"map-land",baseLayer);
-[[39.9,1.4],[38.9,1.4],[35.9,-5.4],[35.3,-4.9],[36.1,-5.0]].forEach(([latitude,longitude])=>{
-  const point=projectPoint(latitude,longitude);
-  svgElement("circle",{cx:point.x,cy:point.y,r:latitude<37?9:5,class:"map-land"},baseLayer);
-});
+async function drawBaseMap() {
+  try {
+    const response=await fetch("/static/map-geometry.json",{cache:"force-cache"});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const geometry=await response.json();
+    geometry.neighbors.forEach(d=>svgElement("path",{d,class:"map-land neighbor"},baseLayer));
+    geometry.spain.forEach(d=>svgElement("path",{d,class:"map-land"},baseLayer));
+    geometry.canaries.forEach(d=>svgElement("path",{d,class:"map-land"},baseLayer));
+    const insetLabel=svgElement("text",{x:145,y:905,class:"map-inset-label","text-anchor":"middle"},cityLayer);
+    insetLabel.textContent="Islas Canarias";
+  } catch(error) {
+    console.error("No se pudo cargar la geometría local del mapa",error);
+    document.getElementById("mapStatus").textContent="Mapa sin geometría";
+  }
+}
+drawBaseMap();
 
 [
   [[43.36,-8.4],[42.88,-8.54],[42.34,-7.86],[41.5,-5.7],[41.65,-4.73],[40.42,-3.7]],
@@ -478,6 +470,23 @@ function formatTime(value) {
   } else date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(date);
+}
+function shiftTime(value, minutes) {
+  if (value === undefined || value === null || value === "") return null;
+  let timestamp;
+  if (typeof value === "number" || /^\d{10,13}$/.test(String(value))) {
+    timestamp = Number(value);
+    if (timestamp < 100000000000) timestamp *= 1000;
+  } else {
+    timestamp = new Date(value).getTime();
+  }
+  const shifted = new Date(timestamp + minutes * 60000);
+  return Number.isFinite(shifted.getTime()) ? shifted.toISOString() : null;
+}
+function getScheduledArrival(train) {
+  return typeof train.delayMinutes === "number"
+    ? shiftTime(train.expectedArrival, -train.delayMinutes)
+    : null;
 }
 function delayColor(delay) {
   if (typeof delay !== "number") return "#64aaff";
@@ -593,17 +602,17 @@ function renderTrains() {
     const top=document.createElement("div");top.className="train-top";
     const titleWrap=document.createElement("div");titleWrap.style.minWidth="0";
     const title=document.createElement("div");title.className="train-title";title.textContent=`${getServiceName(train)} · ${safe(train.trainCode)}`;
-    const type=document.createElement("div");type.className="train-type";type.textContent=`${safe(train.operator||train.operatorCode,"Operadora sin identificar")} · ${safe(train.transportType,"Tipo sin clasificar")}`;
+    const type=document.createElement("div");type.className="train-type";type.textContent=safe(train.transportType,"Tipo sin clasificar");
     titleWrap.append(title,type);
     const delay=document.createElement("span");delay.className=`delay ${delayClass(train.delayMinutes)}`;delay.textContent=typeof train.delayMinutes==="number"?`${train.delayMinutes>0?"+":""}${Math.round(train.delayMinutes)} min`:"Sin dato";
     top.append(titleWrap,delay);
     const route=document.createElement("div");route.className="route";route.textContent=`${safe(train.originName,"Origen sin dato")} → ${safe(train.destinationName,"Destino sin dato")}`;
     const location=document.createElement("div");location.className="train-location";location.textContent=safe(train.currentLocation||train.currentStationName||train.nextStationName,"Ubicación no disponible");
     const times=document.createElement("div");times.className="train-times";
-    const planned=document.createElement("div");planned.className="time-item";planned.innerHTML='<span class="time-label">Llegada programada</span>';
-    const pv=document.createElement("span");pv.className="time-value";pv.textContent=formatTime(train.expectedArrival);planned.appendChild(pv);
-    const estimated=document.createElement("div");estimated.className="time-item";estimated.innerHTML='<span class="time-label">Llegada estimada</span>';
-    const ev=document.createElement("span");ev.className="time-value estimated";ev.textContent=formatTime(train.estimatedArrival);estimated.appendChild(ev);
+    const planned=document.createElement("div");planned.className="time-item";planned.innerHTML='<span class="time-label">Hora programada</span>';
+    const pv=document.createElement("span");pv.className="time-value";pv.textContent=formatTime(getScheduledArrival(train));planned.appendChild(pv);
+    const estimated=document.createElement("div");estimated.className="time-item";estimated.innerHTML='<span class="time-label">Hora estimada</span>';
+    const ev=document.createElement("span");ev.className="time-value estimated";ev.textContent=formatTime(train.expectedArrival);estimated.appendChild(ev);
     times.append(planned,estimated);card.append(top,route,location,times);container.appendChild(card);
   });
   updateMap(filtered);
@@ -642,12 +651,12 @@ function showDetail(id) {
 
   const grid = document.createElement("div");
   grid.className = "detail-grid";
-  addDetailBox(grid,"Empresa",safe(train.operator || train.operatorCode));
+  addDetailBox(grid,"Tipo de tren",getServiceName(train));
   addDetailBox(grid,"Tipo de transporte",safe(train.transportType || train.productName));
   addDetailBox(grid,"Comunidad",getCommunityLabel(train));
   addDetailBox(grid,"Retraso",typeof train.delayMinutes === "number" ? `${Math.round(train.delayMinutes)} minutos` : "No disponible");
-  addDetailBox(grid,"Llegada programada",formatTime(train.expectedArrival),"big-time");
-  addDetailBox(grid,"Llegada estimada",formatTime(train.estimatedArrival),"big-time good");
+  addDetailBox(grid,"Hora programada",formatTime(getScheduledArrival(train)),"big-time");
+  addDetailBox(grid,"Hora estimada",formatTime(train.expectedArrival),"big-time good");
   addDetailBox(grid,"Velocidad",typeof train.speedKmh === "number" ? `${train.speedKmh} km/h${train.speedSource === "estimated" ? " · estimada" : ""}` : "No disponible");
   addDetailBox(grid,"Punto kilométrico",train.km ?? train.kilometer ?? train.pk ?? "No disponible");
   addDetailBox(grid,"Próxima estación",safe(train.nextStationName));
@@ -658,7 +667,6 @@ function showDetail(id) {
       ? `${train.latitude.toFixed(5)}, ${train.longitude.toFixed(5)}`
       : "No disponibles"
   );
-  addDetailBox(grid,"Fuente de posición",safe(train.positionSource || train.source, "Radar de Trenes"));
   content.appendChild(grid);
 
   document.getElementById("detail").style.display = "block";
