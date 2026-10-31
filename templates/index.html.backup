@@ -1,0 +1,784 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADIF Rail Monitor</title>
+
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+*{box-sizing:border-box}
+
+body{
+ margin:0;
+ background:#0b1220;
+ color:#edf3fc;
+ font-family:Arial,sans-serif;
+}
+
+header{
+ height:65px;
+ padding:0 22px;
+ background:#111c2e;
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ border-bottom:1px solid #29394f;
+}
+
+.logo{font-size:20px;font-weight:bold}
+.logo span{color:#20cf91}
+.status{font-size:12px;color:#20cf91}
+
+.layout{
+ display:block;
+ height:calc(100vh - 65px);
+ position:relative;
+}
+
+.map-area{
+ position:absolute;
+ inset:0;
+}
+
+#map{
+ width:100%;
+ height:100%;
+}
+
+.sidebar{
+ position:absolute;
+ z-index:600;
+ top:15px;
+ left:15px;
+ width:340px;
+ max-height:calc(100% - 30px);
+ overflow-y:auto;
+ background:#111c2e;
+ border:1px solid #29394f;
+ border-radius:12px;
+ padding:16px;
+ box-shadow:0 5px 25px #0008;
+}
+
+h3{
+ font-size:12px;
+ color:#94a6bd;
+ text-transform:uppercase;
+ margin:18px 0 10px;
+}
+
+.stats{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:9px;
+}
+
+.stat,.train{
+ background:#17253a;
+ padding:12px;
+ border:1px solid #29394f;
+ border-radius:8px;
+}
+
+.stat small{color:#94a6bd;font-size:11px}
+.stat strong{display:block;font-size:23px;margin-top:7px}
+
+input,select{
+ width:100%;
+ padding:11px;
+ margin-bottom:9px;
+ border-radius:7px;
+ border:1px solid #29394f;
+ background:#0b1627;
+ color:white;
+}
+
+button{
+ background:#1d4267;
+ color:white;
+ border:0;
+ border-radius:7px;
+ padding:10px;
+ cursor:pointer;
+}
+
+button:hover{background:#286294}
+
+.actions{
+ display:flex;
+ gap:7px;
+}
+
+.actions button{flex:1}
+
+.train-list{
+ display:flex;
+ flex-direction:column;
+ gap:7px;
+}
+
+.train{
+ padding:10px;
+ background:#17253a;
+ border:1px solid #29394f;
+ border-radius:8px;
+ cursor:pointer;
+}
+
+.train:hover{border-color:#3998ff}
+
+.train-top{
+ display:flex;
+ justify-content:space-between;
+ font-size:12px;
+ font-weight:bold;
+ gap:8px;
+}
+
+.route{
+ font-size:12px;
+ color:#94a6bd;
+ margin-top:8px;
+}
+
+.delay{
+ font-size:11px;
+ margin-top:7px;
+}
+
+.train-times{
+ margin-top:8px;
+ font-size:11px;
+ line-height:1.7;
+ color:#c2d1e3;
+}
+
+.map-legend{
+ position:absolute;
+ right:15px;
+ top:15px;
+ z-index:500;
+ background:#111c2e;
+ border:1px solid #29394f;
+ border-radius:8px;
+ padding:12px;
+ font-size:12px;
+}
+
+.detail{
+ position:absolute;
+ right:15px;
+ bottom:15px;
+ z-index:1000;
+ width:330px;
+ max-height:65%;
+ overflow-y:auto;
+ display:none;
+ padding:16px;
+ background:#111c2e;
+ border:1px solid #29394f;
+ border-radius:10px;
+ box-shadow:0 5px 25px #0008;
+}
+
+.detail-grid{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:8px;
+ margin-top:14px;
+}
+
+.detail-box{
+ background:#17253a;
+ padding:10px;
+ border-radius:7px;
+ overflow-wrap:anywhere;
+}
+
+.detail-box small{
+ display:block;
+ color:#94a6bd;
+ font-size:10px;
+ margin-bottom:5px;
+}
+
+.detail-box strong{font-size:13px}
+
+.close{
+ float:right;
+ cursor:pointer;
+ color:#ff596b;
+ font-size:18px;
+}
+
+@media(max-width:750px){
+ .sidebar{
+  width:calc(100% - 30px);
+  max-height:45%;
+  top:auto;
+  bottom:15px;
+ }
+
+ .map-legend{
+  top:12px;
+  right:12px;
+ }
+
+ .detail{
+  width:calc(100% - 30px);
+  bottom:15px;
+ }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+ <div class="logo">ADIF <span>RAIL MONITOR</span></div>
+ <div class="status" id="status">● INICIANDO</div>
+</header>
+
+<div class="layout">
+
+<aside class="sidebar">
+
+<h3>Situación ferroviaria</h3>
+
+<div class="stats">
+ <div class="stat">
+  <small>Trenes detectados</small>
+  <strong id="total">0</strong>
+ </div>
+
+ <div class="stat">
+  <small>Retraso medio</small>
+  <strong id="average">—</strong>
+ </div>
+
+ <div class="stat">
+  <small>Con retraso</small>
+  <strong id="delayed">0</strong>
+ </div>
+
+ <div class="stat">
+  <small>Última consulta</small>
+  <strong id="updated" style="font-size:12px">—</strong>
+ </div>
+</div>
+
+<h3>Buscar tren</h3>
+
+<input id="search"
+ placeholder="Número, origen, destino..."
+ oninput="renderTrains()">
+
+<h3>Filtros</h3>
+
+<label style="display:block;font-size:11px;color:#94a6bd;margin-bottom:5px">
+ Comunidad autónoma
+</label>
+
+<select id="communityFilter" onchange="renderTrains()">
+ <option value="">Todas las comunidades</option>
+</select>
+
+<label style="display:block;font-size:11px;color:#94a6bd;margin-bottom:5px">
+ Empresa de transporte
+</label>
+
+<select id="operatorFilter" onchange="renderTrains()">
+ <option value="">Todas las empresas</option>
+</select>
+
+<label style="display:block;font-size:11px;color:#94a6bd;margin-bottom:5px">
+ Ordenar viajes
+</label>
+
+<select id="sortFilter" onchange="renderTrains()">
+ <option value="delay-desc">Mayor retraso primero</option>
+ <option value="delay-asc">Menor retraso primero</option>
+ <option value="speed-desc">Mayor velocidad primero</option>
+ <option value="speed-asc">Menor velocidad primero</option>
+</select>
+
+<div class="actions">
+ <button onclick="loadTrains()">↻ Actualizar</button>
+ <button onclick="exportCSV()">↓ CSV</button>
+</div>
+
+<h3>Trenes detectados</h3>
+
+<div id="trainList" class="train-list">
+ Consultando datos...
+</div>
+
+<p style="font-size:10px;color:#94a6bd;line-height:1.5">
+Datos procedentes de una API externa. Los campos sin información
+se muestran como no disponibles.
+</p>
+
+</aside>
+
+<main class="map-area">
+
+<div id="map"></div>
+
+<div class="map-legend">
+ <strong>Estado de circulación</strong>
+ <p><span style="color:#20cf91">●</span> En hora</p>
+ <p><span style="color:#ffad42">●</span> Con retraso</p>
+ <p><span style="color:#ff596b">●</span> Más de 15 minutos</p>
+</div>
+
+<div class="detail" id="detail">
+ <span class="close" onclick="closeDetail()">✕</span>
+ <div id="detailContent"></div>
+</div>
+
+</main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+const map=L.map("map").setView([40.2,-3.7],6);
+
+L.tileLayer(
+ "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+ {
+  attribution:'&copy; OpenStreetMap contributors',
+  maxZoom:19
+ }
+).addTo(map);
+
+map.on("tileerror",function(){
+ document.getElementById("status").textContent="● ERROR EN MAPA";
+});
+
+let trains=[];
+let markers={};
+
+function value(v){
+ return v===undefined || v===null || v===""
+  ? "No disponible":v;
+}
+
+function getColor(delay){
+ if(typeof delay!=="number")return "#3998ff";
+ if(delay>=15)return "#ff596b";
+ if(delay>0)return "#ffad42";
+ return "#20cf91";
+}
+
+function getIcon(train){
+
+ const color=getColor(train.delayMinutes);
+
+ return L.divIcon({
+  className:"",
+  html:`<div style="
+   width:19px;height:19px;
+   border:3px solid white;
+   background:${color};
+   border-radius:50%;
+   box-shadow:0 0 8px ${color};
+  "></div>`,
+  iconSize:[19,19],
+  iconAnchor:[9,9]
+ });
+}
+
+function getCommunities(t){
+
+ const values=Array.isArray(t.autonomousCommunities)
+  ? t.autonomousCommunities : [];
+
+ if(values.length)return values;
+
+ const direct=t.autonomousCommunity ??
+  t.community ?? t.region ??
+  t.comunidadAutonoma ?? t.ccaa;
+
+ return direct?[String(direct)]:[];
+}
+
+function getCommunityLabel(t){
+ const values=getCommunities(t);
+ return values.length?values.join(" · "):"No disponible";
+}
+
+function updateFilters(){
+
+ const communities=[
+  ...new Set(trains.flatMap(getCommunities).filter(Boolean))
+ ].sort((a,b)=>a.localeCompare(b,"es"));
+
+ const operators=[
+  ...new Set(trains.map(t=>t.operator).filter(Boolean).map(String))
+ ].sort((a,b)=>a.localeCompare(b,"es"));
+
+ const fill=(id,items,allLabel)=>{
+
+  const el=document.getElementById(id);
+  const previous=el.value;
+
+  el.replaceChildren();
+
+  const all=document.createElement("option");
+  all.value="";
+  all.textContent=allLabel;
+  el.appendChild(all);
+
+  items.forEach(v=>{
+   const o=document.createElement("option");
+   o.value=v;
+   o.textContent=v;
+   el.appendChild(o);
+  });
+
+  el.value=items.includes(previous)?previous:"";
+ };
+
+ fill("communityFilter",communities,"Todas las comunidades");
+ fill("operatorFilter",operators,"Todas las empresas");
+}
+
+async function loadTrains(){
+
+ const status=document.getElementById("status");
+ status.textContent="● ACTUALIZANDO...";
+
+ try{
+
+  const response=await fetch("/api/trains",{
+   cache:"no-store"
+  });
+
+  const data=await response.json();
+
+  if(!response.ok || !data.success){
+   throw new Error(data.error || "Error consultando los datos");
+  }
+
+  trains=data.trains || [];
+
+  updateFilters();
+  updateMap();
+  updateStats();
+  renderTrains();
+
+  document.getElementById("updated").textContent=
+   new Date(data.updated).toLocaleTimeString("es-ES");
+
+  status.textContent="● CONECTADO";
+
+ }catch(error){
+
+  console.error(error);
+  status.textContent="● ERROR";
+
+  document.getElementById("trainList").textContent=
+   error.message;
+ }
+}
+
+function updateMap(){
+
+ const active=new Set();
+
+ trains.forEach(t=>{
+
+  if(typeof t.latitude!=="number" ||
+     typeof t.longitude!=="number")return;
+
+  const id=String(t.id ?? t.trainCode ?? "");
+
+  if(!id)return;
+
+  active.add(id);
+
+  const position=[t.latitude,t.longitude];
+
+  if(markers[id]){
+   markers[id].setLatLng(position);
+   markers[id].setIcon(getIcon(t));
+  }else{
+
+   markers[id]=L.marker(position,{
+    icon:getIcon(t)
+   }).addTo(map);
+
+   markers[id].on("click",()=>showDetail(id));
+  }
+
+ });
+
+ Object.keys(markers).forEach(id=>{
+  if(!active.has(id)){
+   map.removeLayer(markers[id]);
+   delete markers[id];
+  }
+ });
+}
+
+function updateStats(){
+
+ const delays=trains
+  .map(t=>t.delayMinutes)
+  .filter(v=>typeof v==="number");
+
+ const avg=delays.length
+  ? delays.reduce((a,b)=>a+b,0)/delays.length
+  : null;
+
+ document.getElementById("total").textContent=trains.length;
+
+ document.getElementById("average").textContent=
+  avg===null?"—":avg.toFixed(1)+" min";
+
+ document.getElementById("delayed").textContent=
+  delays.filter(v=>v>0).length;
+}
+
+function renderTrains(){
+
+ const query=document.getElementById("search").value.toLowerCase();
+ const community=document.getElementById("communityFilter").value;
+ const operator=document.getElementById("operatorFilter").value;
+ const sort=document.getElementById("sortFilter").value;
+
+ const filtered=trains.filter(t=>{
+
+  const text=[
+   t.trainCode,
+   t.productName,
+   t.operator,
+   t.originName,
+   t.destinationName
+  ].join(" ").toLowerCase();
+
+  return text.includes(query) &&
+   (!community || getCommunities(t).includes(community)) &&
+   (!operator || String(t.operator||"")===operator);
+ });
+
+ filtered.sort((a,b)=>{
+
+  const da=typeof a.delayMinutes==="number"?a.delayMinutes:null;
+  const db=typeof b.delayMinutes==="number"?b.delayMinutes:null;
+
+  const sa=typeof (a.speedKmh ?? a.speed)==="number"
+   ?(a.speedKmh ?? a.speed):null;
+
+  const sb=typeof (b.speedKmh ?? b.speed)==="number"
+   ?(b.speedKmh ?? b.speed):null;
+
+  let va,vb;
+
+  if(sort==="delay-asc"){
+   va=da;vb=db;
+  }else if(sort==="speed-desc"){
+   va=sb;vb=sa;
+  }else if(sort==="speed-asc"){
+   va=sa;vb=sb;
+  }else{
+   va=db;vb=da;
+  }
+
+  if(va===null)return vb===null?0:1;
+  if(vb===null)return -1;
+
+  return va-vb;
+ });
+
+ const container=document.getElementById("trainList");
+ container.replaceChildren();
+
+ if(!filtered.length){
+  container.textContent="No se han encontrado trenes con esos filtros.";
+  return;
+ }
+
+ filtered.forEach(t=>{
+
+  const item=document.createElement("div");
+  item.className="train";
+
+  const top=document.createElement("div");
+  top.className="train-top";
+
+  const name=document.createElement("span");
+  name.textContent=`${value(t.productName)} ${value(t.trainCode)}`;
+
+  const delay=document.createElement("span");
+  delay.style.color=getColor(t.delayMinutes);
+
+  delay.textContent=
+   typeof t.delayMinutes==="number"
+    ?(t.delayMinutes>0?"+":"")+t.delayMinutes+" min"
+    :"Sin dato";
+
+  top.append(name,delay);
+
+  const route=document.createElement("div");
+  route.className="route";
+  route.textContent=
+   `${value(t.originName)} → ${value(t.destinationName)}`;
+
+  const times=document.createElement("div");
+  times.className="train-times";
+
+  const speed=document.createElement("div");
+  speed.textContent="Velocidad: "+
+   (typeof (t.speedKmh ?? t.speed)==="number"
+    ?(t.speedKmh ?? t.speed)+" km/h"
+    :"No disponible");
+
+  const expected=document.createElement("div");
+  expected.textContent=
+   "Hora esperada de llegada: "+value(t.expectedArrival);
+
+  const estimated=document.createElement("div");
+  estimated.textContent=
+   "Llegada prevista: "+value(t.estimatedArrival);
+
+  const region=document.createElement("div");
+  region.textContent="Comunidad: "+getCommunityLabel(t);
+
+  times.append(speed,expected,estimated,region);
+
+  const next=document.createElement("div");
+  next.className="delay";
+  next.textContent="Próxima parada: "+value(t.nextStationName);
+
+  item.append(top,route,times,next);
+
+  item.onclick=()=>{
+   showDetail(String(t.id ?? t.trainCode ?? ""));
+  };
+
+  container.appendChild(item);
+ });
+}
+
+function showDetail(id){
+
+ const t=trains.find(
+  x=>String(x.id ?? x.trainCode ?? "")===id
+ );
+
+ if(!t)return;
+
+ const content=document.getElementById("detailContent");
+ content.replaceChildren();
+
+ const heading=document.createElement("h2");
+ heading.textContent=
+  `${value(t.productName)} ${value(t.trainCode)}`;
+
+ content.appendChild(heading);
+
+ const route=document.createElement("p");
+ route.textContent=
+  `${value(t.originName)} → ${value(t.destinationName)}`;
+
+ content.appendChild(route);
+
+ const fields=[
+  ["Operadora",t.operator],
+  ["Comunidad autónoma",getCommunityLabel(t)],
+  ["Retraso",typeof t.delayMinutes==="number"?t.delayMinutes+" min":null],
+  ["Próxima estación",t.nextStationName],
+  ["Velocidad",typeof (t.speedKmh ?? t.speed)==="number"
+   ?(t.speedKmh ?? t.speed)+" km/h":null],
+  ["Punto kilométrico",t.km ?? t.kilometer ?? t.pk],
+  ["Hora esperada de llegada",t.expectedArrival],
+  ["Llegada prevista (estimación)",t.estimatedArrival],
+  ["Latitud",t.latitude],
+  ["Longitud",t.longitude],
+  ["Última actualización",t.timestamp]
+ ];
+
+ const grid=document.createElement("div");
+ grid.className="detail-grid";
+
+ fields.forEach(([label,val])=>{
+
+  const box=document.createElement("div");
+  box.className="detail-box";
+
+  const small=document.createElement("small");
+  small.textContent=label;
+
+  const strong=document.createElement("strong");
+  strong.textContent=value(val);
+
+  box.append(small,strong);
+  grid.appendChild(box);
+ });
+
+ content.appendChild(grid);
+
+ document.getElementById("detail").style.display="block";
+
+ if(typeof t.latitude==="number" &&
+    typeof t.longitude==="number"){
+  map.setView([t.latitude,t.longitude],10);
+ }
+}
+
+function closeDetail(){
+ document.getElementById("detail").style.display="none";
+}
+
+function exportCSV(){
+
+ const fields=[
+  "id","trainCode","productName","operator",
+  "originName","destinationName","delayMinutes",
+  "speedKmh","expectedArrival","estimatedArrival",
+  "autonomousCommunities","km","latitude","longitude"
+ ];
+
+ const escapeCSV=v=>
+  '"'+String(v??"").replace(/"/g,'""')+'"';
+
+ const csv=[
+  fields.join(";"),
+  ...trains.map(t=>
+   fields.map(f=>
+    escapeCSV(
+     f==="autonomousCommunities"
+      ?getCommunityLabel(t):t[f]
+    )
+   ).join(";")
+  )
+ ].join("\r\n");
+
+ const blob=new Blob(["\uFEFF"+csv],{
+  type:"text/csv;charset=utf-8"
+ });
+
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement("a");
+
+ a.href=url;
+ a.download="adif-trenes.csv";
+ a.click();
+
+ URL.revokeObjectURL(url);
+}
+
+loadTrains();
+
+setInterval(loadTrains,20000);
+
+</script>
+</body>
+</html>

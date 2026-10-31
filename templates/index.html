@@ -1,784 +1,743 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080d18">
 <title>ADIF Rail Monitor</title>
 
-<link rel="stylesheet"
- href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-
 <style>
+:root{
+  color-scheme:dark;
+  --bg:#080d18;
+  --panel:#101a2b;
+  --panel-2:#142238;
+  --panel-3:#1a2b43;
+  --line:#263851;
+  --text:#edf4ff;
+  --muted:#8fa3bd;
+  --green:#35d6a0;
+  --amber:#ffbd59;
+  --red:#ff687c;
+  --blue:#64aaff;
+  --shadow:0 18px 55px rgba(0,0,0,.34);
+}
 *{box-sizing:border-box}
-
+html,body{height:100%;margin:0}
 body{
- margin:0;
- background:#0b1220;
- color:#edf3fc;
- font-family:Arial,sans-serif;
+  background:var(--bg);color:var(--text);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  overflow:hidden;
 }
-
+button,input,select{font:inherit}
 header{
- height:65px;
- padding:0 22px;
- background:#111c2e;
- display:flex;
- align-items:center;
- justify-content:space-between;
- border-bottom:1px solid #29394f;
+  height:68px;position:relative;z-index:1200;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;background:rgba(10,17,30,.96);
+  border-bottom:1px solid var(--line);
+  box-shadow:0 5px 24px rgba(0,0,0,.2);
 }
-
-.logo{font-size:20px;font-weight:bold}
-.logo span{color:#20cf91}
-.status{font-size:12px;color:#20cf91}
-
-.layout{
- display:block;
- height:calc(100vh - 65px);
- position:relative;
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.07em}
+.brand-mark{
+  width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+  color:#06150f;background:linear-gradient(135deg,#54e2b1,#1eaa84);
+  font-size:19px;box-shadow:0 5px 18px rgba(53,214,160,.2)
 }
-
-.map-area{
- position:absolute;
- inset:0;
+.brand-name{font-size:15px}
+.brand-name span{color:var(--green)}
+.header-right{display:flex;align-items:center;gap:14px}
+.header-caption{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.connection{
+  display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;
+  color:var(--green);letter-spacing:.07em
 }
-
-#map{
- width:100%;
- height:100%;
-}
-
+.connection::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 12px currentColor}
+.connection.error{color:var(--red)}
+.connection.loading{color:var(--amber)}
+.layout{height:calc(100vh - 68px);position:relative}
+.map-area{position:absolute;inset:0;background:#090f19}
+#map{height:100%;width:100%;background:#0a1421}
+#mapSvg{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#mapSvg.dragging{cursor:grabbing}
+.map-ocean{fill:#0a1421}
+.map-land{fill:#193541;stroke:#69858c;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.map-land.neighbor{fill:#122b35;stroke:#425c63;stroke-width:1;vector-effect:non-scaling-stroke}
+.map-route{fill:none;stroke:#6c9292;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.7;vector-effect:non-scaling-stroke}
+.map-city{fill:#8de0bd;stroke:#0a1421;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.map-city-label{fill:#c1d2d7;font-size:13px;font-weight:650;paint-order:stroke;stroke:#0a1421;stroke-width:3px;stroke-linejoin:round}
+.train-marker{cursor:pointer;outline:none}
+.train-marker .marker-halo{opacity:.2}
+.train-marker .marker-dot{stroke:#edf4ff;stroke-width:2.5;vector-effect:non-scaling-stroke}
+.train-marker:focus .marker-dot{stroke:#fff;stroke-width:4}
+.vector-map-controls{position:absolute;z-index:500;top:158px;right:16px;display:grid;gap:5px}
+.vector-map-controls button{width:36px;height:36px;border:1px solid #2a3d56;border-radius:8px;background:#101b2d;color:#e7f0fc;font-size:19px;line-height:1;cursor:pointer;box-shadow:0 3px 12px #0005}
+.vector-map-controls button:hover{background:#203c5e;border-color:#4677a8}
 .sidebar{
- position:absolute;
- z-index:600;
- top:15px;
- left:15px;
- width:340px;
- max-height:calc(100% - 30px);
- overflow-y:auto;
- background:#111c2e;
- border:1px solid #29394f;
- border-radius:12px;
- padding:16px;
- box-shadow:0 5px 25px #0008;
+  position:absolute;z-index:700;top:16px;left:16px;
+  width:358px;max-height:calc(100% - 32px);overflow:auto;
+  padding:17px;background:rgba(12,21,36,.96);
+  border:1px solid rgba(111,143,180,.24);border-radius:18px;
+  box-shadow:var(--shadow);backdrop-filter:blur(16px);
+  scrollbar-width:thin;scrollbar-color:#344a65 transparent;
 }
-
-h3{
- font-size:12px;
- color:#94a6bd;
- text-transform:uppercase;
- margin:18px 0 10px;
+.sidebar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.eyebrow{font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+.live-pill{
+  display:inline-flex;align-items:center;gap:6px;padding:5px 8px;
+  border:1px solid rgba(53,214,160,.24);border-radius:99px;
+  background:rgba(53,214,160,.08);color:var(--green);font-size:9px;font-weight:800;letter-spacing:.08em
 }
-
-.stats{
- display:grid;
- grid-template-columns:1fr 1fr;
- gap:9px;
+.live-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.stat{
+  min-height:76px;padding:12px 13px;border:1px solid var(--line);
+  border-radius:12px;background:linear-gradient(145deg,rgba(26,43,67,.88),rgba(17,29,48,.92))
 }
-
-.stat,.train{
- background:#17253a;
- padding:12px;
- border:1px solid #29394f;
- border-radius:8px;
+.stat-label{font-size:10px;color:var(--muted);font-weight:650;letter-spacing:.045em}
+.stat-value{display:block;margin-top:7px;font-size:23px;line-height:1;font-weight:800;letter-spacing:-.04em}
+.stat-value.green{color:var(--green)}
+.stat-value.amber{color:var(--amber)}
+.section-title{
+  display:flex;align-items:center;justify-content:space-between;
+  margin:20px 0 9px;font-size:10px;font-weight:800;
+  color:#a9bbd1;letter-spacing:.12em;text-transform:uppercase
 }
-
-.stat small{color:#94a6bd;font-size:11px}
-.stat strong{display:block;font-size:23px;margin-top:7px}
-
+.section-title span:last-child{font-size:10px;color:#6f849e;font-weight:600;letter-spacing:0;text-transform:none}
+.search-wrap{position:relative}
+.search-icon{position:absolute;left:12px;top:10px;color:#8297b1;font-size:16px;pointer-events:none}
 input,select{
- width:100%;
- padding:11px;
- margin-bottom:9px;
- border-radius:7px;
- border:1px solid #29394f;
- background:#0b1627;
- color:white;
+  width:100%;height:39px;margin:0 0 9px;padding:0 11px;
+  color:var(--text);background:#0b1525;border:1px solid #2a3d56;
+  border-radius:10px;outline:none;font-size:12px;transition:border .18s,box-shadow .18s
 }
+input{padding-left:35px}
+input:focus,select:focus{border-color:#4d8ed0;box-shadow:0 0 0 3px rgba(77,142,208,.12)}
+select{cursor:pointer}
+select option{background:#101a2b;color:var(--text)}
+.filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 9px}
+.filter-grid .wide{grid-column:1/-1}
+.filter-label{display:block;margin:2px 0 5px;font-size:10px;color:#90a4bd;font-weight:650}
 
-button{
- background:#1d4267;
- color:white;
- border:0;
- border-radius:7px;
- padding:10px;
- cursor:pointer;
+.filter-group{margin:7px 0 11px}
+.filter-chips{display:flex;flex-wrap:wrap;gap:6px}
+.filter-chip{border:1px solid #304660;border-radius:999px;padding:7px 10px;background:#101e31;color:#aebfd3;font-size:10px;font-weight:750;cursor:pointer;transition:.15s}
+.filter-chip:hover{border-color:#5c8fbe;color:#eef6ff;background:#1a304b}
+.filter-chip.active{background:#35d6a0;color:#061810;border-color:#35d6a0;box-shadow:0 0 14px #35d6a033}
+.filter-chip small{opacity:.75;font-size:9px;margin-left:3px}
+.map-error{position:absolute;z-index:450;left:50%;top:50%;transform:translate(-50%,-50%);max-width:320px;padding:15px 18px;border:1px solid #415a77;border-radius:13px;background:rgba(9,18,31,.95);color:#dceaff;text-align:center;font-size:12px;line-height:1.5;box-shadow:0 10px 35px #0008}
+.map-error strong{display:block;margin-bottom:5px;color:#ffbd59}
+
+.actions{display:flex;gap:8px;margin:4px 0 2px}
+.action-btn{
+  flex:1;height:38px;border:1px solid #2c4564;border-radius:10px;
+  color:#dceaff;background:#172a43;font-size:11px;font-weight:750;cursor:pointer;
+  transition:transform .15s,background .15s,border .15s
 }
-
-button:hover{background:#286294}
-
-.actions{
- display:flex;
- gap:7px;
-}
-
-.actions button{flex:1}
-
-.train-list{
- display:flex;
- flex-direction:column;
- gap:7px;
-}
-
+.action-btn:hover{background:#203c5e;border-color:#4677a8;transform:translateY(-1px)}
+.action-btn.primary{color:#061810;background:linear-gradient(135deg,#54e2b1,#2cbd91);border:0}
+.action-btn.primary:hover{background:#6aebc0}
+.list-heading{display:flex;align-items:center;justify-content:space-between;margin:20px 0 9px}
+.list-heading h2{margin:0;font-size:10px;color:#a9bbd1;letter-spacing:.12em;text-transform:uppercase}
+.count-chip{padding:4px 8px;border-radius:99px;background:#1b2d45;color:#a9c8eb;font-size:10px;font-weight:800}
+.train-list{display:flex;flex-direction:column;gap:8px}
 .train{
- padding:10px;
- background:#17253a;
- border:1px solid #29394f;
- border-radius:8px;
- cursor:pointer;
+  padding:11px 12px;border:1px solid #253851;border-radius:12px;
+  background:linear-gradient(145deg,rgba(24,40,62,.94),rgba(16,29,47,.96));
+  cursor:pointer;transition:border .15s,transform .15s,background .15s
 }
-
-.train:hover{border-color:#3998ff}
-
-.train-top{
- display:flex;
- justify-content:space-between;
- font-size:12px;
- font-weight:bold;
- gap:8px;
-}
-
-.route{
- font-size:12px;
- color:#94a6bd;
- margin-top:8px;
-}
-
+.train:hover{border-color:#4b85bd;transform:translateY(-1px);background:#1a2e49}
+.train-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.train-title{min-width:0;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.train-type{margin-top:3px;color:#8fa4bf;font-size:10px}
 .delay{
- font-size:11px;
- margin-top:7px;
+  flex-shrink:0;padding:4px 7px;border-radius:7px;
+  font-size:10px;font-weight:800;background:rgba(53,214,160,.1);color:var(--green)
 }
-
-.train-times{
- margin-top:8px;
- font-size:11px;
- line-height:1.7;
- color:#c2d1e3;
-}
-
+.delay.warning{background:rgba(255,189,89,.12);color:var(--amber)}
+.delay.danger{background:rgba(255,104,124,.12);color:var(--red)}
+.route{margin-top:9px;color:#c9d7e8;font-size:11px;font-weight:650;line-height:1.4}
+.train-location{margin-top:7px;display:flex;align-items:center;gap:6px;color:#91a8c2;font-size:10px}
+.train-location::before{content:"⌖";font-size:14px;color:var(--blue)}
+.train-times{display:flex;gap:15px;margin-top:9px;padding-top:8px;border-top:1px solid rgba(112,143,179,.14)}
+.time-item{flex:1;min-width:0}
+.time-label{display:block;color:#8398b2;font-size:9px;text-transform:uppercase;letter-spacing:.06em}
+.time-value{display:block;margin-top:3px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.time-value.estimated{color:var(--green)}
+.empty,.loading-state{padding:20px 12px;text-align:center;color:#91a4bc;font-size:11px;line-height:1.6;border:1px dashed #344963;border-radius:12px}
+.source-note{margin:13px 2px 0;color:#71869f;font-size:9px;line-height:1.55}
 .map-legend{
- position:absolute;
- right:15px;
- top:15px;
- z-index:500;
- background:#111c2e;
- border:1px solid #29394f;
- border-radius:8px;
- padding:12px;
- font-size:12px;
+  position:absolute;z-index:500;top:16px;right:16px;
+  padding:12px 14px;border:1px solid rgba(111,143,180,.22);border-radius:13px;
+  background:rgba(12,21,36,.93);box-shadow:0 10px 32px rgba(0,0,0,.25);backdrop-filter:blur(12px);
+  font-size:10px;color:#a9bbd1
 }
-
+.legend-title{margin-bottom:8px;color:#e3edf9;font-weight:800;font-size:10px}
+.legend-row{display:flex;align-items:center;gap:7px;margin-top:6px}
+.legend-dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 9px currentColor}
+.map-caption{margin-top:9px;padding-top:8px;border-top:1px solid #263851;color:#71869f;font-size:9px}
 .detail{
- position:absolute;
- right:15px;
- bottom:15px;
- z-index:1000;
- width:330px;
- max-height:65%;
- overflow-y:auto;
- display:none;
- padding:16px;
- background:#111c2e;
- border:1px solid #29394f;
- border-radius:10px;
- box-shadow:0 5px 25px #0008;
+  display:none;position:absolute;z-index:1000;right:16px;bottom:16px;
+  width:360px;max-height:65%;overflow:auto;padding:18px;
+  background:rgba(12,21,36,.97);border:1px solid rgba(111,143,180,.28);
+  border-radius:17px;box-shadow:var(--shadow);backdrop-filter:blur(16px)
 }
-
-.detail-grid{
- display:grid;
- grid-template-columns:1fr 1fr;
- gap:8px;
- margin-top:14px;
+.detail-close{
+  float:right;width:27px;height:27px;border:1px solid #344a64;border-radius:8px;
+  background:#17283e;color:#b9cbe0;cursor:pointer;font-size:15px
 }
-
-.detail-box{
- background:#17253a;
- padding:10px;
- border-radius:7px;
- overflow-wrap:anywhere;
+.detail h2{margin:3px 35px 5px 0;font-size:18px}
+.detail-route{margin:0 0 14px;color:#a4b7cd;font-size:12px}
+.detail-status{padding:10px 11px;border-radius:10px;background:#14263d;color:#b9d0eb;font-size:11px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.detail-box{padding:11px;border:1px solid #293e58;border-radius:10px;background:#142238;min-width:0}
+.detail-box small{display:block;margin-bottom:5px;color:#8da2bc;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
+.detail-box strong{display:block;overflow-wrap:anywhere;font-size:13px;font-weight:750}
+.detail-box .big-time{font-size:20px;font-variant-numeric:tabular-nums}
+.detail-box .good{color:var(--green)}
+.detail-box .late{color:var(--amber)}
+@media(max-width:800px){
+  body{overflow:hidden}
+  header{height:58px;padding:0 14px}
+  .header-caption{display:none}
+  .layout{height:calc(100vh - 58px)}
+  .sidebar{top:auto;left:10px;bottom:10px;width:min(420px,calc(100% - 20px));max-height:47%;padding:13px;border-radius:15px}
+  .map-legend{top:10px;right:10px;padding:9px 11px}
+  .vector-map-controls{top:124px;right:10px}
+  .detail{right:10px;bottom:10px;width:calc(100% - 20px);max-height:65%}
+  .stat{min-height:66px;padding:10px}
+  .stat-value{font-size:20px}
 }
-
-.detail-box small{
- display:block;
- color:#94a6bd;
- font-size:10px;
- margin-bottom:5px;
-}
-
-.detail-box strong{font-size:13px}
-
-.close{
- float:right;
- cursor:pointer;
- color:#ff596b;
- font-size:18px;
-}
-
-@media(max-width:750px){
- .sidebar{
-  width:calc(100% - 30px);
-  max-height:45%;
-  top:auto;
-  bottom:15px;
- }
-
- .map-legend{
-  top:12px;
-  right:12px;
- }
-
- .detail{
-  width:calc(100% - 30px);
-  bottom:15px;
- }
+@media(max-width:420px){
+  .filter-grid{grid-template-columns:1fr}
+  .filter-grid .wide{grid-column:auto}
+  .sidebar{max-height:53%}
+  .map-legend{font-size:9px}
 }
 </style>
 </head>
 
 <body>
-
 <header>
- <div class="logo">ADIF <span>RAIL MONITOR</span></div>
- <div class="status" id="status">● INICIANDO</div>
+  <div class="brand">
+    <div class="brand-mark">↗</div>
+    <div class="brand-name">ADIF <span>RAIL MONITOR</span></div>
+  </div>
+  <div class="header-right">
+    <div class="header-caption">Radar ferroviario · España</div>
+    <div class="connection loading" id="status">CONECTANDO</div>
+  </div>
 </header>
 
 <div class="layout">
+  <main class="map-area">
+    <div id="map">
+      <svg id="mapSvg" viewBox="0 0 1100 950" role="img" aria-label="Mapa vectorial de España con red ferroviaria y trenes">
+        <rect class="map-ocean" width="1100" height="950"></rect>
+        <g id="mapBase"></g>
+        <g id="mapRoutes"></g>
+        <g id="mapCities"></g>
+        <g id="trainMarkers"></g>
+      </svg>
+      <div class="vector-map-controls" role="group" aria-label="Controles del mapa">
+        <button type="button" id="zoomIn" aria-label="Acercar" title="Acercar">+</button>
+        <button type="button" id="zoomOut" aria-label="Alejar" title="Alejar">−</button>
+        <button type="button" id="zoomReset" aria-label="Ver toda España" title="Ver toda España">⌖</button>
+      </div>
+    </div>
 
-<aside class="sidebar">
+    <div class="map-legend">
+      <div class="legend-title">ESTADO DE CIRCULACIÓN</div>
+      <div class="legend-row"><span class="legend-dot" style="color:#35d6a0;background:#35d6a0"></span> En hora</div>
+      <div class="legend-row"><span class="legend-dot" style="color:#ffbd59;background:#ffbd59"></span> Con retraso</div>
+      <div class="legend-row"><span class="legend-dot" style="color:#ff687c;background:#ff687c"></span> +15 minutos</div>
+      <div class="map-caption" id="mapStatus">Mapa vectorial · España</div>
+    </div>
 
-<h3>Situación ferroviaria</h3>
+    <section class="detail" id="detail">
+      <button class="detail-close" onclick="closeDetail()" aria-label="Cerrar">×</button>
+      <div id="detailContent"></div>
+    </section>
+  </main>
 
-<div class="stats">
- <div class="stat">
-  <small>Trenes detectados</small>
-  <strong id="total">0</strong>
- </div>
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div>
+        <div class="eyebrow">Panel de circulación</div>
+        <div style="font-size:17px;font-weight:800;margin-top:4px">Tráfico ferroviario</div>
+      </div>
+      <div class="live-pill">EN DIRECTO</div>
+    </div>
 
- <div class="stat">
-  <small>Retraso medio</small>
-  <strong id="average">—</strong>
- </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Trenes detectados</div><strong class="stat-value" id="total">—</strong></div>
+      <div class="stat"><div class="stat-label">Retraso medio</div><strong class="stat-value amber" id="average">—</strong></div>
+      <div class="stat"><div class="stat-label">Con retraso</div><strong class="stat-value" id="delayed">—</strong></div>
+      <div class="stat"><div class="stat-label">Última consulta</div><strong class="stat-value" id="updated" style="font-size:17px">—</strong></div>
+    </div>
 
- <div class="stat">
-  <small>Con retraso</small>
-  <strong id="delayed">0</strong>
- </div>
+    <div class="section-title"><span>Buscar tren</span></div>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="search" placeholder="Número, origen, destino o estación..." oninput="renderTrains()">
+    </div>
 
- <div class="stat">
-  <small>Última consulta</small>
-  <strong id="updated" style="font-size:12px">—</strong>
- </div>
+    <div class="section-title"><span>Filtros rápidos</span><span id="filterCount">Todos</span></div>
+    <div class="filter-group">
+      <label class="filter-label">Servicio ferroviario</label>
+      <div class="filter-chips" id="serviceChips"></div>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">Empresa</label>
+      <div class="filter-chips" id="operatorChips"></div>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">Comunidad autónoma</label>
+      <div class="filter-chips" id="communityChips"></div>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label" for="sortFilter">Ordenar por</label>
+      <select id="sortFilter" onchange="renderTrains()">
+        <option value="delay-desc">Mayor retraso primero</option>
+        <option value="delay-asc">Menor retraso primero</option>
+        <option value="speed-desc">Mayor velocidad primero</option>
+        <option value="speed-asc">Menor velocidad primero</option>
+        <option value="code-asc">Número de tren</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="action-btn primary" onclick="loadTrains()">↻ Actualizar</button>
+      <button class="action-btn" onclick="exportCSV()">↓ Exportar CSV</button>
+    </div>
+
+    <div class="list-heading">
+      <h2>Trenes detectados</h2>
+      <span class="count-chip" id="visibleCount">0</span>
+    </div>
+    <div id="trainList" class="train-list">
+      <div class="loading-state">Conectando con las fuentes ferroviarias…</div>
+    </div>
+
+    <p class="source-note">
+      Datos de Radar de Trenes y feeds GTFS-RT de Renfe. La ubicación y los horarios dependen de la disponibilidad de cada fuente. Las comunidades se estiman a partir de las estaciones cuando no vienen informadas.
+    </p>
+  </aside>
 </div>
-
-<h3>Buscar tren</h3>
-
-<input id="search"
- placeholder="Número, origen, destino..."
- oninput="renderTrains()">
-
-<h3>Filtros</h3>
-
-<label style="display:block;font-size:11px;color:#94a6bd;margin-bottom:5px">
- Comunidad autónoma
-</label>
-
-<select id="communityFilter" onchange="renderTrains()">
- <option value="">Todas las comunidades</option>
-</select>
-
-<label style="display:block;font-size:11px;color:#94a6bd;margin-bottom:5px">
- Empresa de transporte
-</label>
-
-<select id="operatorFilter" onchange="renderTrains()">
- <option value="">Todas las empresas</option>
-</select>
-
-<label style="display:block;font-size:11px;color:#94a6bd;margin-bottom:5px">
- Ordenar viajes
-</label>
-
-<select id="sortFilter" onchange="renderTrains()">
- <option value="delay-desc">Mayor retraso primero</option>
- <option value="delay-asc">Menor retraso primero</option>
- <option value="speed-desc">Mayor velocidad primero</option>
- <option value="speed-asc">Menor velocidad primero</option>
-</select>
-
-<div class="actions">
- <button onclick="loadTrains()">↻ Actualizar</button>
- <button onclick="exportCSV()">↓ CSV</button>
-</div>
-
-<h3>Trenes detectados</h3>
-
-<div id="trainList" class="train-list">
- Consultando datos...
-</div>
-
-<p style="font-size:10px;color:#94a6bd;line-height:1.5">
-Datos procedentes de una API externa. Los campos sin información
-se muestran como no disponibles.
-</p>
-
-</aside>
-
-<main class="map-area">
-
-<div id="map"></div>
-
-<div class="map-legend">
- <strong>Estado de circulación</strong>
- <p><span style="color:#20cf91">●</span> En hora</p>
- <p><span style="color:#ffad42">●</span> Con retraso</p>
- <p><span style="color:#ff596b">●</span> Más de 15 minutos</p>
-</div>
-
-<div class="detail" id="detail">
- <span class="close" onclick="closeDetail()">✕</span>
- <div id="detailContent"></div>
-</div>
-
-</main>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
+"use strict";
 
-const map=L.map("map").setView([40.2,-3.7],6);
+function bootRailMonitor() {
+const SVG_NS = "http://www.w3.org/2000/svg";
+const mapSvg = document.getElementById("mapSvg");
+const baseLayer = document.getElementById("mapBase");
+const routeLayer = document.getElementById("mapRoutes");
+const cityLayer = document.getElementById("mapCities");
+const markerLayer = document.getElementById("trainMarkers");
+const MAP_WIDTH = 1100;
+const MAP_HEIGHT = 950;
+const BASE_VIEW = {x:0,y:0,width:MAP_WIDTH,height:MAP_HEIGHT};
+let mapView = {...BASE_VIEW};
 
-L.tileLayer(
- "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
- {
-  attribution:'&copy; OpenStreetMap contributors',
-  maxZoom:19
- }
-).addTo(map);
+function svgElement(tag, attributes, parent) {
+  const element = document.createElementNS(SVG_NS, tag);
+  Object.entries(attributes).forEach(([name, value]) => element.setAttribute(name, value));
+  if (parent) parent.appendChild(element);
+  return element;
+}
+function projectPoint(latitude, longitude) {
+  return {x:(longitude + 10) * 78, y:(44.5 - latitude) * 100};
+}
+function drawShape(points, className, parent) {
+  const path = points.map(([latitude, longitude], index) => {
+    const point = projectPoint(latitude, longitude);
+    return `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  }).join("") + "Z";
+  svgElement("path", {d:path,class:className}, parent);
+}
+function drawRoute(points) {
+  const path = points.map(([latitude, longitude], index) => {
+    const point = projectPoint(latitude, longitude);
+    return `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  }).join("");
+  svgElement("path", {d:path,class:"map-route"}, routeLayer);
+}
 
-map.on("tileerror",function(){
- document.getElementById("status").textContent="● ERROR EN MAPA";
+drawShape([[45,-1],[44.3,-1.7],[43.7,-1.4],[43.5,-.4],[43.6,.7],[43.4,1.8],[43.2,3.2],[43.3,5],[46,5],[46,-1]],"map-land neighbor",baseLayer);
+drawShape([[41.9,-8.2],[41.8,-6.8],[41.2,-6.9],[40.8,-6.9],[39.5,-7],[38,-7],[37,-7.4],[36.95,-8.9],[37.9,-9.5],[40.8,-9.5]],"map-land neighbor",baseLayer);
+drawShape([
+  [43.79,-7.0],[43.55,-6.7],[43.42,-5.8],[43.38,-4.5],[43.28,-3.2],
+  [43.38,-2.3],[43.35,-1.8],[43.05,-1.25],[42.75,-1.55],[42.72,-0.6],
+  [42.65,0.5],[42.55,1.4],[42.45,2.3],[42.35,3.15],[41.95,3.2],
+  [41.35,2.25],[40.75,0.75],[40.55,0.25],[39.9,-0.05],[39.45,-0.3],
+  [38.7,-0.1],[38.0,-0.7],[37.25,-1.75],[36.75,-2.35],[36.15,-5.35],
+  [36.0,-6.25],[36.45,-6.4],[36.8,-6.25],[37.15,-7.0],[37.2,-7.45],
+  [37.6,-7.4],[38.0,-7.0],[39.0,-7.0],[40.0,-6.85],[41.0,-6.2],
+  [41.9,-6.55],[42.25,-7.0],[42.7,-7.0],[43.2,-7.0]
+],"map-land",baseLayer);
+drawShape([[39.9,3.0],[39.7,4.35],[39.0,4.25],[38.65,3.0],[39.0,2.35],[39.65,2.35]],"map-land",baseLayer);
+[[39.9,1.4],[38.9,1.4],[35.9,-5.4],[35.3,-4.9],[36.1,-5.0]].forEach(([latitude,longitude])=>{
+  const point=projectPoint(latitude,longitude);
+  svgElement("circle",{cx:point.x,cy:point.y,r:latitude<37?9:5,class:"map-land"},baseLayer);
 });
 
-let trains=[];
-let markers={};
+[
+  [[43.36,-8.4],[42.88,-8.54],[42.34,-7.86],[41.5,-5.7],[41.65,-4.73],[40.42,-3.7]],
+  [[42.14,-8.62],[41.55,-8.42],[41.16,-7.8],[40.64,-8.65],[40.2,-7.9],[40.42,-3.7]],
+  [[40.42,-3.7],[41.65,-4.73],[42.34,-3.7],[43.26,-2.93],[43.32,-1.98]],
+  [[40.42,-3.7],[41.65,-0.88],[41.39,2.17]],
+  [[40.42,-3.7],[39.57,2.65],[41.39,2.17]],
+  [[40.42,-3.7],[39.86,-4.02],[39.0,-1.86],[39.47,-0.38],[39.57,2.65]],
+  [[40.42,-3.7],[38.99,-1.13],[38.35,-0.49]],
+  [[40.42,-3.7],[38.0,-4.8],[37.89,-4.78],[37.39,-5.99],[36.53,-6.29]],
+  [[37.89,-4.78],[36.72,-4.42]],
+  [[41.65,-4.73],[42.14,-0.41],[41.65,-0.88]],
+  [[39.47,-0.38],[38.35,-0.49],[38.0,-4.8]]
+].forEach(drawRoute);
 
-function value(v){
- return v===undefined || v===null || v===""
-  ? "No disponible":v;
+const cities=[
+  [43.36,-8.4,"A Coruña",-8, -10],[42.88,-8.54,"Santiago",-28,18],
+  [43.26,-2.93,"Bilbao",8,-8],[43.32,-1.98,"San Sebastián",8,14],
+  [43.36,-5.85,"Oviedo",8,-8],[42.34,-3.7,"Burgos",8,-8],
+  [41.65,-4.73,"Valladolid",8,-9],[40.42,-3.7,"Madrid",9,-10],
+  [41.65,-0.88,"Zaragoza",8,-8],[41.39,2.17,"Barcelona",8,-9],
+  [39.47,-0.38,"Valencia",8,-8],[38.35,-0.49,"Alicante",8,16],
+  [37.89,-4.78,"Córdoba",8,-8],[37.39,-5.99,"Sevilla",8,16],
+  [36.72,-4.42,"Málaga",8,16],[36.53,-6.29,"Cádiz",-35,20]
+];
+cities.forEach(([latitude,longitude,name,dx,dy])=>{
+  const point=projectPoint(latitude,longitude);
+  svgElement("circle",{cx:point.x,cy:point.y,r:3.5,class:"map-city"},cityLayer);
+  const label=svgElement("text",{x:point.x+dx,y:point.y+dy,class:"map-city-label"},cityLayer);
+  label.textContent=name;
+});
+
+function applyMapView() {
+  mapSvg.setAttribute("viewBox",`${mapView.x} ${mapView.y} ${mapView.width} ${mapView.height}`);
 }
-
-function getColor(delay){
- if(typeof delay!=="number")return "#3998ff";
- if(delay>=15)return "#ff596b";
- if(delay>0)return "#ffad42";
- return "#20cf91";
+function constrainMapView() {
+  mapView.width=Math.min(MAP_WIDTH,Math.max(420,mapView.width));
+  mapView.height=mapView.width*MAP_HEIGHT/MAP_WIDTH;
+  mapView.x=Math.max(0,Math.min(MAP_WIDTH-mapView.width,mapView.x));
+  mapView.y=Math.max(0,Math.min(MAP_HEIGHT-mapView.height,mapView.y));
+  applyMapView();
 }
-
-function getIcon(train){
-
- const color=getColor(train.delayMinutes);
-
- return L.divIcon({
-  className:"",
-  html:`<div style="
-   width:19px;height:19px;
-   border:3px solid white;
-   background:${color};
-   border-radius:50%;
-   box-shadow:0 0 8px ${color};
-  "></div>`,
-  iconSize:[19,19],
-  iconAnchor:[9,9]
- });
+function zoomMap(factor) {
+  const centerX=mapView.x+mapView.width/2;
+  const centerY=mapView.y+mapView.height/2;
+  mapView.width/=factor;
+  mapView.height=mapView.width*MAP_HEIGHT/MAP_WIDTH;
+  mapView.x=centerX-mapView.width/2;
+  mapView.y=centerY-mapView.height/2;
+  constrainMapView();
 }
-
-function getCommunities(t){
-
- const values=Array.isArray(t.autonomousCommunities)
-  ? t.autonomousCommunities : [];
-
- if(values.length)return values;
-
- const direct=t.autonomousCommunity ??
-  t.community ?? t.region ??
-  t.comunidadAutonoma ?? t.ccaa;
-
- return direct?[String(direct)]:[];
+function resetMapView() { mapView={...BASE_VIEW}; applyMapView(); }
+function focusMap(latitude,longitude) {
+  const point=projectPoint(latitude,longitude);
+  mapView.width=620;
+  mapView.height=mapView.width*MAP_HEIGHT/MAP_WIDTH;
+  mapView.x=point.x-mapView.width/2;
+  mapView.y=point.y-mapView.height/2;
+  constrainMapView();
 }
+document.getElementById("zoomIn").addEventListener("click",()=>zoomMap(1.35));
+document.getElementById("zoomOut").addEventListener("click",()=>zoomMap(1/1.35));
+document.getElementById("zoomReset").addEventListener("click",resetMapView);
+let mapDrag=null;
+mapSvg.addEventListener("pointerdown",event=>{
+  if(event.target.closest(".train-marker"))return;
+  mapDrag={x:event.clientX,y:event.clientY,view:{...mapView}};
+  mapSvg.setPointerCapture(event.pointerId);
+});
+mapSvg.addEventListener("pointermove",event=>{
+  if(!mapDrag)return;
+  const rect=mapSvg.getBoundingClientRect();
+  const scale=Math.max(mapView.width/rect.width,mapView.height/rect.height);
+  mapView.x=mapDrag.view.x-(event.clientX-mapDrag.x)*scale;
+  mapView.y=mapDrag.view.y-(event.clientY-mapDrag.y)*scale;
+  constrainMapView();
+  mapSvg.classList.add("dragging");
+});
+const finishMapDrag=()=>{mapDrag=null;mapSvg.classList.remove("dragging");};
+mapSvg.addEventListener("pointerup",finishMapDrag);
+mapSvg.addEventListener("pointercancel",finishMapDrag);
+mapSvg.addEventListener("wheel",event=>{event.preventDefault();zoomMap(event.deltaY<0?1.15:1/1.15);},{passive:false});
 
-function getCommunityLabel(t){
- const values=getCommunities(t);
- return values.length?values.join(" · "):"No disponible";
+let trains = [];
+let requestInProgress = false;
+const selectedFilters = {service:"", operator:"", community:""};
+
+function safe(value, fallback="No disponible") {
+  return value === undefined || value === null || value === "" ? fallback : value;
 }
+function formatTime(value) {
+  if (value === undefined || value === null || value === "") return "—";
+  let date;
+  if (typeof value === "number" || /^\d{10,13}$/.test(String(value))) {
+    let stamp = Number(value); if (stamp > 100000000000) stamp /= 1000;
+    date = new Date(stamp * 1000);
+  } else date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(date);
+}
+function delayColor(delay) {
+  if (typeof delay !== "number") return "#64aaff";
+  if (delay >= 15) return "#ff687c";
+  if (delay > 0) return "#ffbd59";
+  return "#35d6a0";
+}
+function delayClass(delay) {
+  if (typeof delay !== "number") return "";
+  if (delay >= 15) return "danger";
+  if (delay > 0) return "warning";
+  return "";
+}
+function trainId(train) { return String(train.id ?? train.trainCode ?? ""); }
+function getCommunities(train) {
+  if (Array.isArray(train.autonomousCommunities)) return train.autonomousCommunities;
+  const one = train.autonomousCommunity ?? train.community;
+  return one ? [String(one)] : [];
+}
+function getCommunityLabel(train) { const a=getCommunities(train); return a.length?a.join(" · "):"No disponible"; }
 
-function updateFilters(){
-
- const communities=[
-  ...new Set(trains.flatMap(getCommunities).filter(Boolean))
- ].sort((a,b)=>a.localeCompare(b,"es"));
-
- const operators=[
-  ...new Set(trains.map(t=>t.operator).filter(Boolean).map(String))
- ].sort((a,b)=>a.localeCompare(b,"es"));
-
- const fill=(id,items,allLabel)=>{
-
-  const el=document.getElementById(id);
-  const previous=el.value;
-
-  el.replaceChildren();
-
-  const all=document.createElement("option");
-  all.value="";
-  all.textContent=allLabel;
-  el.appendChild(all);
-
-  items.forEach(v=>{
-   const o=document.createElement("option");
-   o.value=v;
-   o.textContent=v;
-   el.appendChild(o);
+// Solo etiqueta AVE/AVLO/AVANT/ALVIA/INTERCITY si la fuente lo indica explícitamente.
+function getServiceName(train) {
+  const raw = [train.productName, train.productCategory, train.providerProduct, train.serviceName, train.trafficType, train.type, train.category].filter(Boolean).join(" ").toUpperCase();
+  const normalized = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const known = ["AVLO","AVE","AVANT","ALVIA","INTERCITY","EUROMED","TRENHOTEL","CERCANIAS","MEDIA DISTANCIA","REGIONAL","MD" ];
+  for (const name of known) {
+    if (new RegExp("(^|[^A-Z])" + name.replace(" ", "\\s+") + "([^A-Z]|$)").test(normalized)) {
+      if (name === "CERCANIAS") return "Cercanías";
+      if (name === "MEDIA DISTANCIA" || name === "MD" || name === "REGIONAL") return "Media Distancia";
+      return name;
+    }
+  }
+  const generic = String(train.transportType || "").trim();
+  if (generic && !["Alta Velocidad","Larga Distancia","Sin clasificar","Otros"].includes(generic)) return generic;
+  if (/LONG_DISTANCE|LARGA DISTANCIA|ALTA VELOCIDAD/i.test(raw + " " + generic)) return "Larga Distancia · servicio sin identificar";
+  return generic || "Servicio sin identificar";
+}
+function getServiceFilterKey(train) { return getServiceName(train); }
+function getFilteredTrains() {
+  const query = document.getElementById("search").value.trim().toLocaleLowerCase("es");
+  const sort = document.getElementById("sortFilter").value;
+  const filtered = trains.filter(train => {
+    const text = [train.trainCode,getServiceName(train),train.productName,train.transportType,train.operator,train.operatorCode,train.originName,train.destinationName,train.nextStationName,train.currentLocation,train.currentStationName].join(" ").toLocaleLowerCase("es");
+    return text.includes(query)
+      && (!selectedFilters.service || getServiceFilterKey(train) === selectedFilters.service)
+      && (!selectedFilters.operator || String(train.operator || train.operatorCode || "Empresa sin identificar") === selectedFilters.operator)
+      && (!selectedFilters.community || getCommunities(train).includes(selectedFilters.community));
   });
-
-  el.value=items.includes(previous)?previous:"";
- };
-
- fill("communityFilter",communities,"Todas las comunidades");
- fill("operatorFilter",operators,"Todas las empresas");
-}
-
-async function loadTrains(){
-
- const status=document.getElementById("status");
- status.textContent="● ACTUALIZANDO...";
-
- try{
-
-  const response=await fetch("/api/trains",{
-   cache:"no-store"
+  filtered.sort((a,b) => {
+    if (sort === "code-asc") return String(a.trainCode||"").localeCompare(String(b.trainCode||""),"es");
+    let av,bv;
+    if (sort.startsWith("speed")) { av=typeof a.speedKmh==="number"?a.speedKmh:null; bv=typeof b.speedKmh==="number"?b.speedKmh:null; }
+    else { av=typeof a.delayMinutes==="number"?a.delayMinutes:null; bv=typeof b.delayMinutes==="number"?b.delayMinutes:null; }
+    if (av===null) return 1; if (bv===null) return -1;
+    return sort.endsWith("asc")?av-bv:bv-av;
   });
-
-  const data=await response.json();
-
-  if(!response.ok || !data.success){
-   throw new Error(data.error || "Error consultando los datos");
-  }
-
-  trains=data.trains || [];
-
-  updateFilters();
-  updateMap();
-  updateStats();
-  renderTrains();
-
-  document.getElementById("updated").textContent=
-   new Date(data.updated).toLocaleTimeString("es-ES");
-
-  status.textContent="● CONECTADO";
-
- }catch(error){
-
-  console.error(error);
-  status.textContent="● ERROR";
-
-  document.getElementById("trainList").textContent=
-   error.message;
- }
+  return filtered;
+}
+function renderChipGroup(containerId, values, key, allLabel) {
+  const container=document.getElementById(containerId); container.replaceChildren();
+  const unique=[...new Set(values.filter(Boolean).map(String))].sort((a,b)=>a.localeCompare(b,"es"));
+  const choices=[{value:"",label:allLabel},...unique.map(v=>({value:v,label:v}))];
+  if (selectedFilters[key] && !unique.includes(selectedFilters[key])) selectedFilters[key]="";
+  choices.forEach(choice=>{
+    const button=document.createElement("button"); button.type="button"; button.className="filter-chip"+(selectedFilters[key]===choice.value?" active":""); button.textContent=choice.label;
+    button.setAttribute("aria-pressed",selectedFilters[key]===choice.value?"true":"false");
+    button.onclick=()=>{selectedFilters[key]=choice.value; renderFilterChips(); renderTrains();};
+    container.appendChild(button);
+  });
+}
+function renderFilterChips() {
+  renderChipGroup("serviceChips",trains.map(getServiceFilterKey),"service","Todos");
+  renderChipGroup("operatorChips",trains.map(t=>t.operator||t.operatorCode||"Empresa sin identificar"),"operator","Todas");
+  renderChipGroup("communityChips",trains.flatMap(getCommunities),"community","Todas");
+}
+function updateMap(filteredTrains) {
+  markerLayer.replaceChildren();
+  filteredTrains.forEach(train=>{
+    if (typeof train.latitude!=="number" || typeof train.longitude!=="number") return;
+    const id=trainId(train); if(!id)return;
+    const point=projectPoint(train.latitude,train.longitude);
+    const color=delayColor(train.delayMinutes);
+    const marker=svgElement("g",{class:"train-marker",transform:`translate(${point.x} ${point.y})`,tabindex:"0",role:"button","aria-label":`${getServiceName(train)} ${safe(train.trainCode," tren")}`},markerLayer);
+    svgElement("circle",{r:14,fill:color,class:"marker-halo"},marker);
+    svgElement("circle",{r:7,fill:color,class:"marker-dot"},marker);
+    const title=svgElement("title",{},marker);
+    title.textContent=`${getServiceName(train)} ${safe(train.trainCode)} · ${safe(train.originName,"Origen")} → ${safe(train.destinationName,"Destino")}`;
+    marker.addEventListener("click",()=>showDetail(id));
+    marker.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();showDetail(id);}});
+  });
+  document.getElementById("mapStatus").textContent=`${markerLayer.childElementCount} tren(es) visibles en el mapa`;
 }
 
-function updateMap(){
+function updateStats() {
+  const delays = trains.map(t => t.delayMinutes).filter(v => typeof v === "number");
+  const average = delays.length ? delays.reduce((a,b) => a+b,0) / delays.length : null;
 
- const active=new Set();
-
- trains.forEach(t=>{
-
-  if(typeof t.latitude!=="number" ||
-     typeof t.longitude!=="number")return;
-
-  const id=String(t.id ?? t.trainCode ?? "");
-
-  if(!id)return;
-
-  active.add(id);
-
-  const position=[t.latitude,t.longitude];
-
-  if(markers[id]){
-   markers[id].setLatLng(position);
-   markers[id].setIcon(getIcon(t));
-  }else{
-
-   markers[id]=L.marker(position,{
-    icon:getIcon(t)
-   }).addTo(map);
-
-   markers[id].on("click",()=>showDetail(id));
-  }
-
- });
-
- Object.keys(markers).forEach(id=>{
-  if(!active.has(id)){
-   map.removeLayer(markers[id]);
-   delete markers[id];
-  }
- });
+  document.getElementById("total").textContent = trains.length;
+  document.getElementById("average").textContent = average === null ? "—" : `${Math.round(average)} min`;
+  document.getElementById("delayed").textContent = delays.filter(v => v > 0).length;
 }
 
-function updateStats(){
-
- const delays=trains
-  .map(t=>t.delayMinutes)
-  .filter(v=>typeof v==="number");
-
- const avg=delays.length
-  ? delays.reduce((a,b)=>a+b,0)/delays.length
-  : null;
-
- document.getElementById("total").textContent=trains.length;
-
- document.getElementById("average").textContent=
-  avg===null?"—":avg.toFixed(1)+" min";
-
- document.getElementById("delayed").textContent=
-  delays.filter(v=>v>0).length;
+function renderTrains() {
+  const filtered=getFilteredTrains();
+  document.getElementById("visibleCount").textContent=filtered.length;
+  const isFiltered=!!(document.getElementById("search").value.trim()||selectedFilters.service||selectedFilters.operator||selectedFilters.community);
+  document.getElementById("filterCount").textContent=isFiltered?"Filtros activos":"Todos";
+  const container=document.getElementById("trainList"); container.replaceChildren();
+  if(!filtered.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No hay trenes que coincidan con estos filtros.";container.appendChild(empty);}
+  filtered.forEach(train=>{
+    const card=document.createElement("article");card.className="train";card.onclick=()=>showDetail(trainId(train));
+    const top=document.createElement("div");top.className="train-top";
+    const titleWrap=document.createElement("div");titleWrap.style.minWidth="0";
+    const title=document.createElement("div");title.className="train-title";title.textContent=`${getServiceName(train)} · ${safe(train.trainCode)}`;
+    const type=document.createElement("div");type.className="train-type";type.textContent=`${safe(train.operator||train.operatorCode,"Operadora sin identificar")} · ${safe(train.transportType,"Tipo sin clasificar")}`;
+    titleWrap.append(title,type);
+    const delay=document.createElement("span");delay.className=`delay ${delayClass(train.delayMinutes)}`;delay.textContent=typeof train.delayMinutes==="number"?`${train.delayMinutes>0?"+":""}${Math.round(train.delayMinutes)} min`:"Sin dato";
+    top.append(titleWrap,delay);
+    const route=document.createElement("div");route.className="route";route.textContent=`${safe(train.originName,"Origen sin dato")} → ${safe(train.destinationName,"Destino sin dato")}`;
+    const location=document.createElement("div");location.className="train-location";location.textContent=safe(train.currentLocation||train.currentStationName||train.nextStationName,"Ubicación no disponible");
+    const times=document.createElement("div");times.className="train-times";
+    const planned=document.createElement("div");planned.className="time-item";planned.innerHTML='<span class="time-label">Llegada programada</span>';
+    const pv=document.createElement("span");pv.className="time-value";pv.textContent=formatTime(train.expectedArrival);planned.appendChild(pv);
+    const estimated=document.createElement("div");estimated.className="time-item";estimated.innerHTML='<span class="time-label">Llegada estimada</span>';
+    const ev=document.createElement("span");ev.className="time-value estimated";ev.textContent=formatTime(train.estimatedArrival);estimated.appendChild(ev);
+    times.append(planned,estimated);card.append(top,route,location,times);container.appendChild(card);
+  });
+  updateMap(filtered);
 }
 
-function renderTrains(){
-
- const query=document.getElementById("search").value.toLowerCase();
- const community=document.getElementById("communityFilter").value;
- const operator=document.getElementById("operatorFilter").value;
- const sort=document.getElementById("sortFilter").value;
-
- const filtered=trains.filter(t=>{
-
-  const text=[
-   t.trainCode,
-   t.productName,
-   t.operator,
-   t.originName,
-   t.destinationName
-  ].join(" ").toLowerCase();
-
-  return text.includes(query) &&
-   (!community || getCommunities(t).includes(community)) &&
-   (!operator || String(t.operator||"")===operator);
- });
-
- filtered.sort((a,b)=>{
-
-  const da=typeof a.delayMinutes==="number"?a.delayMinutes:null;
-  const db=typeof b.delayMinutes==="number"?b.delayMinutes:null;
-
-  const sa=typeof (a.speedKmh ?? a.speed)==="number"
-   ?(a.speedKmh ?? a.speed):null;
-
-  const sb=typeof (b.speedKmh ?? b.speed)==="number"
-   ?(b.speedKmh ?? b.speed):null;
-
-  let va,vb;
-
-  if(sort==="delay-asc"){
-   va=da;vb=db;
-  }else if(sort==="speed-desc"){
-   va=sb;vb=sa;
-  }else if(sort==="speed-asc"){
-   va=sa;vb=sb;
-  }else{
-   va=db;vb=da;
-  }
-
-  if(va===null)return vb===null?0:1;
-  if(vb===null)return -1;
-
-  return va-vb;
- });
-
- const container=document.getElementById("trainList");
- container.replaceChildren();
-
- if(!filtered.length){
-  container.textContent="No se han encontrado trenes con esos filtros.";
-  return;
- }
-
- filtered.forEach(t=>{
-
-  const item=document.createElement("div");
-  item.className="train";
-
-  const top=document.createElement("div");
-  top.className="train-top";
-
-  const name=document.createElement("span");
-  name.textContent=`${value(t.productName)} ${value(t.trainCode)}`;
-
-  const delay=document.createElement("span");
-  delay.style.color=getColor(t.delayMinutes);
-
-  delay.textContent=
-   typeof t.delayMinutes==="number"
-    ?(t.delayMinutes>0?"+":"")+t.delayMinutes+" min"
-    :"Sin dato";
-
-  top.append(name,delay);
-
-  const route=document.createElement("div");
-  route.className="route";
-  route.textContent=
-   `${value(t.originName)} → ${value(t.destinationName)}`;
-
-  const times=document.createElement("div");
-  times.className="train-times";
-
-  const speed=document.createElement("div");
-  speed.textContent="Velocidad: "+
-   (typeof (t.speedKmh ?? t.speed)==="number"
-    ?(t.speedKmh ?? t.speed)+" km/h"
-    :"No disponible");
-
-  const expected=document.createElement("div");
-  expected.textContent=
-   "Hora esperada de llegada: "+value(t.expectedArrival);
-
-  const estimated=document.createElement("div");
-  estimated.textContent=
-   "Llegada prevista: "+value(t.estimatedArrival);
-
-  const region=document.createElement("div");
-  region.textContent="Comunidad: "+getCommunityLabel(t);
-
-  times.append(speed,expected,estimated,region);
-
-  const next=document.createElement("div");
-  next.className="delay";
-  next.textContent="Próxima parada: "+value(t.nextStationName);
-
-  item.append(top,route,times,next);
-
-  item.onclick=()=>{
-   showDetail(String(t.id ?? t.trainCode ?? ""));
-  };
-
-  container.appendChild(item);
- });
-}
-
-function showDetail(id){
-
- const t=trains.find(
-  x=>String(x.id ?? x.trainCode ?? "")===id
- );
-
- if(!t)return;
-
- const content=document.getElementById("detailContent");
- content.replaceChildren();
-
- const heading=document.createElement("h2");
- heading.textContent=
-  `${value(t.productName)} ${value(t.trainCode)}`;
-
- content.appendChild(heading);
-
- const route=document.createElement("p");
- route.textContent=
-  `${value(t.originName)} → ${value(t.destinationName)}`;
-
- content.appendChild(route);
-
- const fields=[
-  ["Operadora",t.operator],
-  ["Comunidad autónoma",getCommunityLabel(t)],
-  ["Retraso",typeof t.delayMinutes==="number"?t.delayMinutes+" min":null],
-  ["Próxima estación",t.nextStationName],
-  ["Velocidad",typeof (t.speedKmh ?? t.speed)==="number"
-   ?(t.speedKmh ?? t.speed)+" km/h":null],
-  ["Punto kilométrico",t.km ?? t.kilometer ?? t.pk],
-  ["Hora esperada de llegada",t.expectedArrival],
-  ["Llegada prevista (estimación)",t.estimatedArrival],
-  ["Latitud",t.latitude],
-  ["Longitud",t.longitude],
-  ["Última actualización",t.timestamp]
- ];
-
- const grid=document.createElement("div");
- grid.className="detail-grid";
-
- fields.forEach(([label,val])=>{
-
-  const box=document.createElement("div");
-  box.className="detail-box";
-
-  const small=document.createElement("small");
-  small.textContent=label;
-
-  const strong=document.createElement("strong");
-  strong.textContent=value(val);
-
+function addDetailBox(grid, label, value, className="") {
+  const box = document.createElement("div");
+  box.className = "detail-box";
+  const small = document.createElement("small");
+  small.textContent = label;
+  const strong = document.createElement("strong");
+  strong.className = className;
+  strong.textContent = value;
   box.append(small,strong);
   grid.appendChild(box);
- });
-
- content.appendChild(grid);
-
- document.getElementById("detail").style.display="block";
-
- if(typeof t.latitude==="number" &&
-    typeof t.longitude==="number"){
-  map.setView([t.latitude,t.longitude],10);
- }
 }
 
-function closeDetail(){
- document.getElementById("detail").style.display="none";
+function showDetail(id) {
+  const train = trains.find(t => trainId(t) === id);
+  if (!train) return;
+
+  const content = document.getElementById("detailContent");
+  content.replaceChildren();
+
+  const heading = document.createElement("h2");
+  heading.textContent = `${getServiceName(train)} ${safe(train.trainCode, "")}`;
+  const route = document.createElement("p");
+  route.className = "detail-route";
+  route.textContent = `${safe(train.originName, "Origen no disponible")} → ${safe(train.destinationName, "Destino no disponible")}`;
+
+  const status = document.createElement("div");
+  status.className = "detail-status";
+  status.textContent = `⌖ ${safe(train.currentLocation || train.currentStationName || train.nextStationName, "Ubicación no disponible")}`;
+
+  content.append(heading,route,status);
+
+  const grid = document.createElement("div");
+  grid.className = "detail-grid";
+  addDetailBox(grid,"Empresa",safe(train.operator || train.operatorCode));
+  addDetailBox(grid,"Tipo de transporte",safe(train.transportType || train.productName));
+  addDetailBox(grid,"Comunidad",getCommunityLabel(train));
+  addDetailBox(grid,"Retraso",typeof train.delayMinutes === "number" ? `${Math.round(train.delayMinutes)} minutos` : "No disponible");
+  addDetailBox(grid,"Llegada programada",formatTime(train.expectedArrival),"big-time");
+  addDetailBox(grid,"Llegada estimada",formatTime(train.estimatedArrival),"big-time good");
+  addDetailBox(grid,"Velocidad",typeof train.speedKmh === "number" ? `${train.speedKmh} km/h${train.speedSource === "estimated" ? " · estimada" : ""}` : "No disponible");
+  addDetailBox(grid,"Punto kilométrico",train.km ?? train.kilometer ?? train.pk ?? "No disponible");
+  addDetailBox(grid,"Próxima estación",safe(train.nextStationName));
+  addDetailBox(
+    grid,
+    "Coordenadas GPS",
+    typeof train.latitude === "number" && typeof train.longitude === "number"
+      ? `${train.latitude.toFixed(5)}, ${train.longitude.toFixed(5)}`
+      : "No disponibles"
+  );
+  addDetailBox(grid,"Fuente de posición",safe(train.positionSource || train.source, "Radar de Trenes"));
+  content.appendChild(grid);
+
+  document.getElementById("detail").style.display = "block";
+  if (typeof train.latitude === "number" && typeof train.longitude === "number") {
+    focusMap(train.latitude,train.longitude);
+  }
 }
 
-function exportCSV(){
+function closeDetail() {
+  document.getElementById("detail").style.display = "none";
+}
 
- const fields=[
-  "id","trainCode","productName","operator",
-  "originName","destinationName","delayMinutes",
-  "speedKmh","expectedArrival","estimatedArrival",
-  "autonomousCommunities","km","latitude","longitude"
- ];
+async function loadTrains() {
+  if (requestInProgress) return;
+  requestInProgress = true;
+  const status = document.getElementById("status");
+  status.textContent = "ACTUALIZANDO";
+  status.className = "connection loading";
 
- const escapeCSV=v=>
-  '"'+String(v??"").replace(/"/g,'""')+'"';
+  try {
+    const response = await fetch("/api/trains", {cache:"no-store"});
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Error consultando los datos");
 
- const csv=[
-  fields.join(";"),
-  ...trains.map(t=>
-   fields.map(f=>
-    escapeCSV(
-     f==="autonomousCommunities"
-      ?getCommunityLabel(t):t[f]
-    )
-   ).join(";")
-  )
- ].join("\r\n");
+    trains = Array.isArray(data.trains) ? data.trains : [];
+    renderFilterChips();
+    updateStats();
+    renderTrains();
 
- const blob=new Blob(["\uFEFF"+csv],{
-  type:"text/csv;charset=utf-8"
- });
+    document.getElementById("updated").textContent = formatTime(data.updated);
+    status.textContent = "CONECTADO";
+    status.className = "connection";
+    document.getElementById("mapStatus").textContent = "Mapa vectorial · España";
+  } catch (error) {
+    console.error(error);
+    status.textContent = "ERROR DE DATOS";
+    status.className = "connection error";
+    const list = document.getElementById("trainList");
+    list.replaceChildren();
+    const message = document.createElement("div");
+    message.className = "empty";
+    message.textContent = error.message || "No se han podido cargar los trenes.";
+    list.appendChild(message);
+  } finally {
+    requestInProgress = false;
+  }
+}
 
- const url=URL.createObjectURL(blob);
- const a=document.createElement("a");
+function exportCSV() {
+  const fields = [
+    "id","trainCode","productName","transportType","operator","operatorCode",
+    "originName","destinationName","currentLocation","nextStationName",
+    "delayMinutes","speedKmh","expectedArrival","estimatedArrival",
+    "autonomousCommunities","km","latitude","longitude"
+  ];
 
- a.href=url;
- a.download="adif-trenes.csv";
- a.click();
+  const escapeCSV = value => `"${String(value ?? "").replace(/"/g,'""')}"`;
+  const rows = [
+    fields.join(";"),
+    ...trains.map(train => fields.map(field => {
+      const value = field === "autonomousCommunities"
+        ? getCommunityLabel(train) : train[field];
+      return escapeCSV(value);
+    }).join(";"))
+  ];
 
- URL.revokeObjectURL(url);
+  const blob = new Blob(["\uFEFF" + rows.join("\r\n")], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "adif-rail-monitor.csv";
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url),1000);
 }
 
 loadTrains();
-
-setInterval(loadTrains,20000);
-
+setInterval(loadTrains,30000);
+}
+bootRailMonitor();
 </script>
 </body>
 </html>
