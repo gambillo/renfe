@@ -127,24 +127,29 @@ h1, h2, h3, p { margin: 0; }
   .traffic-panel { height: calc(100vh - 96px); padding: 12px; }
   .map-frame { height: min(66vh, 600px); min-height: 370px; }
 }
+@media (max-width: 860px) {
+  .dashboard { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 12px; }
+  .map-frame { height: auto; aspect-ratio: 22 / 19; min-height: 0; max-height: min(72vh, 560px); }
+  .traffic-panel { height: calc(100vh - 96px); height: calc(100dvh - 96px); }
+}
 @media (max-width: 760px) {
-  .topbar { height: 62px; padding: 0 14px; }
-  .brand-icon { width: 34px; height: 34px; }
-  .brand-copy strong { font-size: 17px; }
+  .topbar { height: auto; min-height: 62px; flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; }
+  .brand { gap: 8px; }
+  .brand-icon { width: 32px; height: 32px; }
+  .brand-copy strong { font-size: 15px; }
   .brand-copy small { font-size: 9px; }
-  .connection { gap: 6px; font-size: 8px; }
+  .connection { gap: 5px; font-size: 7px; }
   .connection time { display: none; }
-  .dashboard { grid-template-columns: 1fr; gap: 12px; padding: 12px; }
-  .map-heading { min-height: 46px; }
+  .dashboard { gap: 12px; padding: 10px; }
+  .map-heading { min-height: 42px; }
   .map-heading h1 { font-size: 18px; }
-  .map-frame { height: min(62vh, 520px); min-height: 340px; }
   .map-legend { right: 8px; bottom: 8px; gap: 8px; padding: 8px; font-size: 8px; }
   .map-counter { left: 8px; bottom: 8px; padding: 7px 8px; font-size: 8px; }
-  .traffic-panel { height: calc(100vh - 86px); min-height: 420px; }
+  .traffic-panel { height: calc(100vh - 82px); height: calc(100dvh - 82px); min-height: 420px; padding: 12px; }
 }
 @media (max-width: 420px) {
   .brand-copy small { max-width: 130px; }
-  .map-frame { height: min(58vh, 460px); min-height: 320px; }
+  .map-frame { max-height: min(68vh, 440px); }
   .map-legend { top: 8px; right: 8px; bottom: auto; display: grid; gap: 5px; }
   .map-counter { bottom: 8px; }
   .selected-train { top: 8px; left: 8px; width: 195px; padding: 10px; }
