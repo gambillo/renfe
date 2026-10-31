@@ -142,15 +142,18 @@ function App() {
   const loadMoreRef = useRef(null);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    const handleResize = () => {
+      const nextIsMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+      setIsMobile(nextIsMobile);
+      if (!nextIsMobile) {
+        setMobileView("map");
+      }
+    };
+
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  useEffect(() => {
-    if (!isMobile) setMobileView("map");
-  }, [isMobile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -298,11 +301,13 @@ function App() {
       </header>
 
       {isMobile && (
-        <div className="mobile-tabs" aria-label="Selector de vista móvil">
+        <div className="mobile-tabs" role="tablist" aria-label="Vistas del panel">
           <button
             type="button"
             className={mobileView === "map" ? "mobile-tab active" : "mobile-tab"}
             onClick={() => setMobileView("map")}
+            aria-selected={mobileView === "map"}
+            role="tab"
           >
             Mapa
           </button>
@@ -310,13 +315,15 @@ function App() {
             type="button"
             className={mobileView === "trains" ? "mobile-tab active" : "mobile-tab"}
             onClick={() => setMobileView("trains")}
+            aria-selected={mobileView === "trains"}
+            role="tab"
           >
             Viajes
           </button>
         </div>
       )}
 
-      <div className={`dashboard ${isMobile ? `mobile-view-${mobileView}` : ""}`}>
+      <div className={isMobile ? `dashboard mobile-view-${mobileView}` : "dashboard"}>
         <section className="map-section" aria-label="Mapa de trenes en circulación">
           <div className="map-heading">
             <div><span className="eyebrow">RED FERROVIARIA</span><h1>España, en movimiento</h1></div>
