@@ -14,6 +14,7 @@ const MAP_WIDTH = 1100;
 const MAP_HEIGHT = 950;
 const REFRESH_MS = 30_000;
 const TRAIN_BATCH_SIZE = 12;
+const MOBILE_BREAKPOINT = 860;
 
 const RAIL_LINES = [
   [[43.36, -8.4], [42.88, -8.54], [42.34, -7.86], [41.5, -5.7], [41.65, -4.73], [40.42, -3.7]],
@@ -131,9 +132,25 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(TRAIN_BATCH_SIZE);
-  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [mobileView, setMobileView] = useState("map");
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
   const trainListRef = useRef(null);
   const loadMoreRef = useRef(null);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) setMobileView("map");
+  }, [isMobile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,8 +199,40 @@ function App() {
   }, [search, serviceFilter, communityFilter]);
 
   useEffect(() => {
-    setIsInfoOpen(Boolean(selectedId));
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && selectedId) {
+        setSelectedId(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [selectedId]);
+
+  const services = [...new Set(trains.map(serviceName))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+  const communities = [...new Set(trains.flatMap(getCommunities))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+  const normalizedSearch = search.trim().toLocaleLowerCase("es");
+
+  const visibleTrains = trains.filter((train) => {
+    const searchable = [train.trainCode, serviceName(train), train.originName, train.destinationName,
+      train.nextStationName, train.currentLocation, ...getCommunities(train)].join(" ").toLocaleLowerCase("es");
+    return searchable.includes(normalizedSearch)
+      && (!serviceFilter || serviceName(train) === serviceFilter)
+      && (!communityFilter || getCommunities(train).includes(communityFilter));
+  }).sort((a, b) => (b.delayMinutes ?? -Infinity) - (a.delayMinutes ?? -Infinity));
+
+  const renderedTrains = visibleTrains.slice(0, visibleLimit);
+  const mapTrains = trains.filter((train) => typeof train.latitude === "number" && typeof train.longitude === "number");
+
+  const delayedTrains = trains.filter((train) => typeof train.delayMinutes === "number" && train.delayMinutes > 0);
+  const delays = trains.map((train) => train.delayMinutes).filter((delay) => typeof delay === "number");
+  const averageDelay = delays.length ? Math.round(delays.reduce((sum, delay) => sum + delay, 0) / delays.length) : null;
+  const selectedTrain = trains.find((train) => trainId(train) === selectedId);
+
+  useEffect(() => {
+    if (selectedId && !visibleTrains.some((train) => trainId(train) === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [selectedId, visibleTrains]);
 
   useEffect(() => {
     const rootNode = trainListRef.current;
@@ -207,31 +256,13 @@ function App() {
     return () => observer.disconnect();
   }, [visibleTrains.length]);
 
-  const services = [...new Set(trains.map(serviceName))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
-  const communities = [...new Set(trains.flatMap(getCommunities))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
-  const normalizedSearch = search.trim().toLocaleLowerCase("es");
-  const visibleTrains = trains.filter((train) => {
-    const searchable = [train.trainCode, serviceName(train), train.originName, train.destinationName,
-      train.nextStationName, train.currentLocation, ...getCommunities(train)].join(" ").toLocaleLowerCase("es");
-    return searchable.includes(normalizedSearch)
-      && (!serviceFilter || serviceName(train) === serviceFilter)
-      && (!communityFilter || getCommunities(train).includes(communityFilter));
-  }).sort((a, b) => (b.delayMinutes ?? -Infinity) - (a.delayMinutes ?? -Infinity));
-  const renderedTrains = visibleTrains.slice(0, visibleLimit);
-  const mapTrains = trains.filter((train) => typeof train.latitude === "number" && typeof train.longitude === "number");
-
-  const delayedTrains = trains.filter((train) => typeof train.delayMinutes === "number" && train.delayMinutes > 0);
-  const delays = trains.map((train) => train.delayMinutes).filter((delay) => typeof delay === "number");
-  const averageDelay = delays.length ? Math.round(delays.reduce((sum, delay) => sum + delay, 0) / delays.length) : null;
-  const selectedTrain = trains.find((train) => trainId(train) === selectedId);
-
   function focusTrain(train) {
     setSelectedId(trainId(train));
+    if (isMobile) setMobileView("map");
   }
 
   function closeTrainInfo() {
     setSelectedId(null);
-    setIsInfoOpen(false);
   }
 
   function exportCsv() {
@@ -266,7 +297,26 @@ function App() {
         </div>
       </header>
 
-      <div className="dashboard">
+      {isMobile && (
+        <div className="mobile-tabs" aria-label="Selector de vista móvil">
+          <button
+            type="button"
+            className={mobileView === "map" ? "mobile-tab active" : "mobile-tab"}
+            onClick={() => setMobileView("map")}
+          >
+            Mapa
+          </button>
+          <button
+            type="button"
+            className={mobileView === "trains" ? "mobile-tab active" : "mobile-tab"}
+            onClick={() => setMobileView("trains")}
+          >
+            Viajes
+          </button>
+        </div>
+      )}
+
+      <div className={`dashboard ${isMobile ? `mobile-view-${mobileView}` : ""}`}>
         <section className="map-section" aria-label="Mapa de trenes en circulación">
           <div className="map-heading">
             <div><span className="eyebrow">RED FERROVIARIA</span><h1>España, en movimiento</h1></div>
@@ -327,7 +377,7 @@ function App() {
               <span><i className="legend-dot major-delay" /> +15 min</span>
             </div>
             <div className="map-counter"><MapPin size={14} /> {mapTrains.length} trenes en mapa</div>
-            {selectedTrain && isInfoOpen && (
+            {selectedTrain && (
               <section className="selected-train" aria-label="Detalle del tren seleccionado">
                 <button className="close-selected" type="button" onClick={closeTrainInfo} aria-label="Cerrar detalle"><X size={15} /></button>
                 <span className="eyebrow">{serviceName(selectedTrain)}</span>
