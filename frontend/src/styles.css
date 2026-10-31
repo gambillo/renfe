@@ -19,7 +19,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--bg); }
-body { min-width: 320px; min-height: 100vh; background: var(--bg); overscroll-behavior-y: none; }
+body { min-width: 320px; min-height: 100vh; background: var(--bg); }
 button, input, select { font: inherit; }
 button { color: inherit; }
 .app-shell { min-height: 100vh; width: 100%; overflow-x: clip; }
@@ -46,7 +46,7 @@ h1, h2, h3, p { margin: 0; }
 .icon-button { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 7px; color: #d3e2df; background: #14262d; cursor: pointer; }
 .icon-button:hover { border-color: #658784; background: #1b353b; }
 .map-actions .icon-button { font-size: 19px; }
-.map-frame { position: relative; flex: 0 0 auto; width: 100%; height: min(72vh, 720px); min-height: 420px; overflow: hidden; border: 1px solid #263d43; background: #0a171d; touch-action: manipulation; }
+.map-frame { position: relative; flex: 0 0 auto; width: 100%; height: min(72vh, 720px); min-height: 420px; overflow: hidden; border: 1px solid #263d43; background: #0a171d; }
 .rail-map { width: 100%; height: 100%; display: block; }
 .land { vector-effect: non-scaling-stroke; }
 .land-neighbor { fill: #142a30; stroke: #425c60; stroke-width: 1.1; }
@@ -125,6 +125,7 @@ h1, h2, h3, p { margin: 0; }
 .panel-footer button { padding: 5px 8px; border: 1px solid #38534f; color: #bdd3c8; background: transparent; font-size: 10px; cursor: pointer; }
 .panel-footer button:disabled { opacity: .45; cursor: not-allowed; }
 .subtle-warning { padding-top: 7px; color: #edb56a; font-size: 10px; }
+.mobile-tabs { display: none; }
 
 @media (max-width: 1000px) {
   .dashboard { grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; padding: 10px 14px 14px; }
@@ -132,9 +133,17 @@ h1, h2, h3, p { margin: 0; }
   .map-frame { height: min(66vh, 600px); min-height: 370px; }
 }
 @media (max-width: 860px) {
-  .dashboard { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 12px; }
+  .dashboard { display: block; padding: 10px 10px 12px; }
+  .map-section, .traffic-panel { display: none; }
+  .app-shell:has(.mobile-tabs) .dashboard { display: block; }
+  .mobile-view-map .map-section { display: flex; }
+  .mobile-view-trains .traffic-panel { display: flex; }
+  .map-section { width: 100%; }
   .map-frame { height: auto; aspect-ratio: 22 / 19; min-height: 0; max-height: min(72vh, 560px); }
   .traffic-panel { height: auto; min-height: 420px; max-height: none; }
+  .mobile-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 10px 0; }
+  .mobile-tab { border: 1px solid var(--line); background: #12252d; color: #d8e3e0; padding: 10px 12px; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .mobile-tab.active { background: var(--green); color: #062015; border-color: var(--green); }
 }
 @media (max-width: 760px) {
   .topbar { height: auto; min-height: 62px; flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; }
@@ -144,12 +153,10 @@ h1, h2, h3, p { margin: 0; }
   .brand-copy small { font-size: 9px; }
   .connection { gap: 5px; font-size: 7px; }
   .connection time { display: none; }
-  .dashboard { gap: 12px; padding: 10px; }
   .map-heading { min-height: 42px; }
   .map-heading h1 { font-size: 18px; }
   .map-legend { right: 8px; bottom: 8px; gap: 8px; padding: 8px; font-size: 8px; }
   .map-counter { left: 8px; bottom: 8px; padding: 7px 8px; font-size: 8px; }
-  .traffic-panel { min-height: 420px; padding: 12px; }
   .stats-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .select-row { grid-template-columns: 1fr; }
   .train-status { grid-template-columns: 1fr; }
@@ -159,8 +166,6 @@ h1, h2, h3, p { margin: 0; }
   .topbar { padding: 10px 12px; }
   .brand-copy { max-width: 170px; }
   .brand-copy small { max-width: 130px; }
-  .dashboard { padding: 8px; }
-  .traffic-panel { padding: 10px; border-radius: 12px; }
   .panel-heading { align-items: flex-start; }
   .panel-heading h2 { font-size: 16px; }
   .stats-row { gap: 6px; }
@@ -185,6 +190,6 @@ h1, h2, h3, p { margin: 0; }
   .load-more { font-size: 10px; }
   .train-row-top strong { font-size: 10px; }
   .train-row-top > div span { font-size: 9px; }
-  .train-status tiny, .train-status small { font-size: 7px; }
+  .train-status small { font-size: 7px; }
   .delay-badge { font-size: 8px; }
 }
