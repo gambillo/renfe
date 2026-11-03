@@ -1,0 +1,20 @@
+{
+  "name": "ADIF Rail Monitor",
+  "short_name": "ADIF Monitor",
+  "description": "Monitor ferroviario de España en tiempo real.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b171d",
+  "theme_color": "#0b171d",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
