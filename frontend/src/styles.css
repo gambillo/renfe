@@ -126,6 +126,21 @@ h1, h2, h3, p { margin: 0; }
 .panel-footer button:disabled { opacity: .45; cursor: not-allowed; }
 .subtle-warning { padding-top: 7px; color: #edb56a; font-size: 10px; }
 .mobile-tabs { display: none; }
+.mobile-tabs button {
+  padding: 12px;
+  border: 1px solid #263d43;
+  border-radius: 8px;
+  background: #102329;
+  color: #a9c0ba;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mobile-tabs button.active {
+  background: #52d39a;
+  color: #0b171d;
+  border-color: #52d39a;
+}
 
 @media (max-width: 1000px) {
   .dashboard { grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; padding: 10px 14px 14px; }

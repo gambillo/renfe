@@ -119,6 +119,7 @@ function getCommunities(train) {
 }
 
 function App() {
+  const [mobileView, setMobileView] = useState("map");
   const [trains, setTrains] = useState([]);
   const [geometry, setGeometry] = useState(null);
   const [updated, setUpdated] = useState(null);
@@ -225,7 +226,24 @@ function App() {
         </div>
       </header>
 
-      <div className="dashboard">
+      <nav className="mobile-tabs" aria-label="Vistas móviles">
+        <button
+          type="button"
+          className={mobileView === "map" ? "active" : ""}
+          onClick={() => setMobileView("map")}
+        >
+          Mapa
+        </button>
+        <button
+          type="button"
+          className={mobileView === "trains" ? "active" : ""}
+          onClick={() => setMobileView("trains")}
+        >
+          Trenes
+        </button>
+      </nav>
+
+      <div className={`dashboard ${mobileView === "map" ? "mobile-view-map" : "mobile-view-trains"}`}>
         <section className="map-section" aria-label="Mapa de trenes en circulación">
           <div className="map-heading">
             <div><span className="eyebrow">RED FERROVIARIA</span><h1>España, en movimiento</h1></div>
